@@ -22,7 +22,7 @@ defmodule Elsa.Topic do
       end)
 
     {:ok, topics}
-  catch
+  rescue
     error -> {:error, error}
   end
 

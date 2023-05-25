@@ -1,18 +1,20 @@
 defmodule Elsa.Group.LifecycleHooksTest do
   use ExUnit.Case
-  use Placebo
 
   alias Elsa.Group.Manager.WorkerManager
   alias Elsa.Registry
   alias Elsa.Group.Acknowledger
   import Elsa.Group.Manager, only: [brod_received_assignment: 1]
+  import Mock
 
-  setup do
+  setup_with_mocks([
+    {WorkerManager, [], [
+      start_worker: fn(_, _, _, _) -> :workers end,
+      stop_all_workers: fn(_, _) -> :workers end
+    ]}
+  ]) do
     test_pid = self()
     Agent.start_link(fn -> test_pid end, name: __MODULE__)
-
-    allow WorkerManager.start_worker(any(), any(), any(), any()), return: :workers
-    allow WorkerManager.stop_all_workers(any(), any()), return: :workers
 
     test_pid = self()
 
@@ -35,19 +37,21 @@ defmodule Elsa.Group.LifecycleHooksTest do
   end
 
   test "assignments_recieved calls lifecycle hook", %{state: state} do
-    allow Registry.whereis_name(any()), return: :ack_pid
-    allow Acknowledger.update_generation_id(any(), any()), return: :ok
+    with_mocks([
+      {Registry, [], [whereis_name: fn(_) -> :ack_pid end]},
+      {Acknowledger, [], [update_generation_id: fn(_, _) -> :ok end]}
+    ]) do
+      assignments = [
+        brod_received_assignment(topic: "topic1", partition: 0, begin_offset: 0),
+        brod_received_assignment(topic: "topic1", partition: 1, begin_offset: 0)
+      ]
 
-    assignments = [
-      brod_received_assignment(topic: "topic1", partition: 0, begin_offset: 0),
-      brod_received_assignment(topic: "topic1", partition: 1, begin_offset: 0)
-    ]
+      {:reply, :ok, ^state} =
+        Elsa.Group.Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
 
-    {:reply, :ok, ^state} =
-      Elsa.Group.Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
-
-    assert_received {:assignment_received, "group1", "topic1", 0, :generation_id}
-    assert_received {:assignment_received, "group1", "topic1", 1, :generation_id}
+      assert_received {:assignment_received, "group1", "topic1", 0, :generation_id}
+      assert_received {:assignment_received, "group1", "topic1", 1, :generation_id}
+    end
   end
 
   test "lifecycle handler can stop processing assignments", %{state: state} do
@@ -65,7 +69,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
         error_state
       )
 
-    refute_called WorkerManager.start_worker(any(), any(), any(), any())
+    assert_not_called WorkerManager.start_worker(:_, :_, :_, :_)
   end
 
   test "assignments_revoked calls lifecycle hook", %{state: state} do
