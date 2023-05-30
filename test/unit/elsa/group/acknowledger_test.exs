@@ -1,6 +1,5 @@
 defmodule Elsa.Group.AcknowledgerTest do
   use ExUnit.Case
-  use Placebo
 
   alias Elsa.{Registry, Supervisor}
   alias Elsa.Group.Acknowledger

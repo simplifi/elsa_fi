@@ -1,15 +1,15 @@
 defmodule Elsa.MixProject do
   use Mix.Project
 
-  @version "1.0.0-rc.3"
-  @github "https://github.com/bbalser/elsa"
+  @version "2.0.0"
+  @github "https://github.com/UrbanOS-Public/elsa_kafka"
 
   def project do
     [
       app: :elsa_kafka,
       name: "Elsa Kafka",
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
@@ -30,14 +30,14 @@ defmodule Elsa.MixProject do
 
   defp deps do
     [
-      {:brod, "~> 3.16"},
+      {:brod, "~> 3.16.5"},
       {:patiently, "~> 0.2", only: [:dev, :test, :integration]},
-      {:divo, "~> 1.3", only: [:dev, :test, :integration], override: true},
-      {:divo_kafka, "~> 0.1.7", only: [:dev, :test, :integration]},
-      {:placebo, "~> 2.0", only: [:dev, :test]},
+      {:divo, "~> 2.0", only: [:dev, :test, :integration], override: true},
+      {:divo_kafka, "~> 1.0", only: [:dev, :test, :integration]},
+      {:mock, "~> 0.3", only: [:dev, :test]},
       {:checkov, "~> 1.0", only: [:test, :integration]},
-      {:ex_doc, "~> 0.25.3", only: [:dev]},
-      {:dialyxir, "~> 1.1.0", only: [:dev], runtime: false}
+      {:ex_doc, "~> 0.29", only: [:dev]},
+      {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
     ]
   end
 
@@ -49,7 +49,7 @@ defmodule Elsa.MixProject do
 
   defp package do
     [
-      maintainers: ["Brian Balser", "Jeff Grunewald", "Johnson Denen"],
+      maintainers: ["Smartcitiesdata"],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => @github}
     ]

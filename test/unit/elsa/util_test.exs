@@ -1,29 +1,33 @@
 defmodule Elsa.UtilTest do
   use ExUnit.Case
-  use Placebo
+
   import Checkov
+  import Mock
 
   alias Elsa.Util
 
   describe "with_connection/2" do
     test "runs function with connection" do
-      allow :kpro.connect_any(any(), any()), return: {:ok, :connection}
-      allow :kpro.close_connection(any()), return: :ok
+      with_mock(:kpro, [
+        connect_any: fn(_, _) -> {:ok, :connection} end,
+        close_connection: fn(_) -> :ok end
+      ]) do
+        result =
+          Util.with_connection([localhost: 9092], fn connection ->
+            assert :connection == connection
+            :return_value
+          end)
 
-      result =
-        Util.with_connection([localhost: 9092], fn connection ->
-          assert :connection == connection
-          :return_value
-        end)
-
-      assert :return_value == result
-      assert_called :kpro.connect_any([{'localhost', 9092}], []), once()
-      assert_called :kpro.close_connection(:connection), once()
+        assert :return_value == result
+        assert_called_exactly :kpro.connect_any([{'localhost', 9092}], []), 1
+        assert_called_exactly :kpro.close_connection(:connection), 1
+      end
     end
 
     test "runs function with controller connection" do
-      allow :kpro.connect_controller(any(), any()), return: {:ok, :connection}
-      allow :kpro.close_connection(any()), return: :ok
+      :meck.new(:kpro, [:passthrough])
+      :meck.expect(:kpro, :connect_controller, 2, {:ok, :connection})
+      :meck.expect(:kpro, :close_connection, 1, :ok)
 
       result =
         Util.with_connection([localhost: 9092], :controller, fn connection ->
@@ -32,35 +36,39 @@ defmodule Elsa.UtilTest do
         end)
 
       assert :return_value == result
-      assert_called :kpro.connect_controller([{'localhost', 9092}], []), once()
-      assert_called :kpro.close_connection(:connection), once()
+      assert_called_exactly :kpro.connect_controller([{'localhost', 9092}], []), 1
+      assert_called_exactly :kpro.close_connection(:connection), 1
+
+      :meck.unload(:kpro)
     end
 
     test "calls close_connection when fun raises an error" do
-      allow :kpro.connect_any(any(), any()), return: {:ok, :connection}
-      allow :kpro.close_connection(any()), return: :ok
+      with_mock(:kpro, [
+        connect_any: fn(_, _) -> {:ok, :connection} end,
+        close_connection: fn(_) -> :ok end
+      ]) do
+        try do
+          Util.with_connection([localhost: 9092], fn _connection ->
+            raise "some error"
+          end)
 
-      try do
-        Util.with_connection([localhost: 9092], fn _connection ->
-          raise "some error"
-        end)
+          flunk("Should have raised error")
+        rescue
+          e in RuntimeError -> assert Exception.message(e) == "some error"
+        end
 
-        flunk("Should have raised error")
-      rescue
-        e in RuntimeError -> assert Exception.message(e) == "some error"
+        assert_called_exactly :kpro.close_connection(:connection), 1
       end
-
-      assert_called :kpro.close_connection(:connection), once()
     end
 
     data_test "raises exception when unable to create connection" do
-      allow :kpro.connect_any(any(), any()), return: {:error, reason}
+      with_mock(:kpro, [connect_any: fn(_, _) -> {:error, reason} end]) do
+        assert_raise(Elsa.ConnectError, message, fn ->
+          Util.with_connection([{'localhost', 9092}], fn _connection -> nil end)
+        end)
 
-      assert_raise(Elsa.ConnectError, message, fn ->
-        Util.with_connection([{'localhost', 9092}], fn _connection -> nil end)
-      end)
-
-      refute_called :kpro.close_connection(any())
+        assert_not_called :kpro.close_connection(:_)
+      end
 
       where([
         [:reason, :message],

@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :elsa, brokers: [localhost: 9092]
 
