@@ -1,15 +1,17 @@
 defmodule Elsa.Consumer.WorkerTest do
   use ExUnit.Case
-  use Placebo
+
   import Checkov
+  import Mock
   import Elsa.Consumer.Worker, only: [kafka_message_set: 1]
   import Elsa.Message, only: [kafka_message: 1]
 
   describe "handle_info/2" do
-    setup do
-      allow Elsa.Group.Acknowledger.ack(any(), any(), any(), any(), any()), return: :ok
-      allow :brod_consumer.ack(any(), any()), return: :ok
 
+    setup_with_mocks([
+      {Elsa.Group.Acknowledger, [], [ack: fn(_, _, _, _, _) -> :ok end]},
+      {:brod_consumer, [], [ack: fn(_, _) -> :ok end]}
+    ]) do
       init_args = [
         connection: :test_name,
         topic: "test-topic",
@@ -31,7 +33,7 @@ defmodule Elsa.Consumer.WorkerTest do
           ]
         )
 
-      [messages: messages, state: create_state(init_args)]
+      {:ok, messages: messages, state: create_state(init_args)}
     end
 
     data_test "handler can specifiy offset to ack", %{messages: messages, state: state} do
@@ -52,7 +54,7 @@ defmodule Elsa.Consumer.WorkerTest do
 
       Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
 
-      refute_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, any(), any()))
+      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
       where(response: [:no_ack, :noop])
     end
 
@@ -64,8 +66,8 @@ defmodule Elsa.Consumer.WorkerTest do
 
       Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
 
-      refute_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, any(), any())
-      assert_called :brod_consumer.ack(any(), 14)
+      assert_not_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_)
+      assert_called :brod_consumer.ack(:_, 14)
     end
 
     data_test "acking without a generation_id continues to consume messages", %{
@@ -78,8 +80,8 @@ defmodule Elsa.Consumer.WorkerTest do
       end)
 
       Elsa.Consumer.Worker.handle_info({:some_pid, messages}, Map.put(state, :generation_id, nil))
-      refute_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, any(), any())
-      assert_called :brod_consumer.ack(any(), 13)
+      assert_not_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_)
+      assert_called :brod_consumer.ack(:_, 13)
 
       where ack: [:ack, :acknowledge]
     end

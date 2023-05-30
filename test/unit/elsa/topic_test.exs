@@ -1,30 +1,24 @@
 defmodule Elsa.TopicTest do
   use ExUnit.Case
-  use Placebo
+
+  import Mock
 
   require Elsa.Topic
 
   describe "create_topic/3" do
     test "returns error tuple when topic fails to get created" do
-      allow Elsa.Util.with_connection(any(), :controller, any()), return: :not_sure_yet
-      allow Elsa.Util.get_api_version(any(), :create_topics), return: :version
-      allow :kpro_req_lib.create_topics(any(), any(), any()), return: :topic_request
-      allow :kpro.request_sync(:connection, any(), any()), return: {:error, "some failure"}
+      with_mocks([
+        {Elsa.Util, [:passthrough], [get_api_version: fn(_, :create_topics) -> :version end]},
+        {:kpro_req_lib, [:passthrough], [create_topics: fn(_, _, _) -> :topic_request end]},
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:error, "some failure"} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
+      ]) do
+        internal_result = Elsa.create_topic([{:localhost, 9092}], "topic-to-create")
 
-      Elsa.create_topic(:endpoints, "topic-to-create")
-
-      function = capture(Elsa.Util.with_connection(:endpoints, :controller, any()), 3)
-
-      internal_result = function.(:connection)
-
-      assert {:error, "some failure"} == internal_result
+        assert {:error, "some failure"} == internal_result
+      end
     end
 
     test "return error tuple when topic response contains an error" do
-      allow Elsa.Util.with_connection(any(), :controller, any()), return: :not_sure_yet
-      allow Elsa.Util.get_api_version(any(), :create_topics), return: :version
-      allow :kpro_req_lib.create_topics(any(), any(), any()), return: :topic_request
-
       message = %{
         topics: [
           %{
@@ -36,23 +30,21 @@ defmodule Elsa.TopicTest do
       }
 
       kpro_rsp = Elsa.Topic.kpro_rsp(api: :create_topics, vsn: 2, msg: message)
-      allow :kpro.request_sync(:connection, any(), any()), return: {:ok, kpro_rsp}
 
-      Elsa.create_topic(:endpoints, "elsa-topic")
-      function = capture(Elsa.Util.with_connection(:endpoints, :controller, any()), 3)
+      with_mocks([
+        {Elsa.Util, [:passthrough], [get_api_version: fn(_, :create_topics) -> :version end]},
+        {:kpro_req_lib, [:passthrough], [create_topics: fn(_, _, _) -> :topic_request end]},
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
+      ]) do
+        internal_result = Elsa.create_topic([{:localhost, 9092}], "elsa-topic")
 
-      internal_result = function.(:connection)
-
-      assert {:error, {:topic_already_exists, "Topic 'elsa-topic' already exists."}} == internal_result
+        assert {:error, {:topic_already_exists, "Topic 'elsa-topic' already exists."}} == internal_result
+      end
     end
   end
 
   describe "delete_topic/2" do
     test "return error tuple when topic response contains an error" do
-      allow Elsa.Util.with_connection(any(), :controller, any()), return: :not_sure_yet
-      allow Elsa.Util.get_api_version(any(), :delete_topics), return: :version
-      allow :kpro_req_lib.delete_topics(any(), any(), any()), return: :topic_request
-
       message = %{
         responses: [
           %{
@@ -63,14 +55,15 @@ defmodule Elsa.TopicTest do
       }
 
       kpro_rsp = Elsa.Topic.kpro_rsp(api: :delete_topics, vsn: 2, msg: message)
-      allow :kpro.request_sync(:connection, any(), any()), return: {:ok, kpro_rsp}
+      with_mocks([
+        {Elsa.Util, [:passthrough], [get_api_version: fn(_, :delete_topics) -> :version end]},
+        {:kpro_req_lib, [:passthrough], [delete_topics: fn(_, _, _) -> :topic_request end]},
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
+      ]) do
+        internal_result = Elsa.delete_topic([{:localhost, 9092}], "elsa-topic")
 
-      Elsa.delete_topic(:endpoints, "elsa-topic")
-      function = capture(Elsa.Util.with_connection(:endpoints, :controller, any()), 3)
-
-      internal_result = function.(:connection)
-
-      assert {:error, {:topic_doesnt_exist, :delete_topic_error}} == internal_result
+        assert {:error, {:topic_doesnt_exist, :delete_topic_error}} == internal_result
+      end
     end
   end
 
@@ -89,13 +82,17 @@ defmodule Elsa.TopicTest do
         ]
       }
 
-      allow :brod.get_metadata(any(), :all), return: {:ok, metadata}
-
-      assert Elsa.list_topics(localhost: 9092) == {:ok, [{"elsa-other-topic", 1}, {"elsa-topic", 2}]}
+      with_mock(:brod, [get_metadata: fn(_, :all) -> {:ok, metadata} end]) do
+        assert Elsa.list_topics(localhost: 9092) == {:ok, [{"elsa-other-topic", 1}, {"elsa-topic", 2}]}
+      end
     end
 
     test "returns error tuple if error is thrown from brod" do
-      assert {:error, _} = Elsa.list_topics(localhost: 9092)
+      with_mock(:brod, [get_metadata: fn(_, :all) -> {:error, "Ops"} end]) do
+        result = Elsa.list_topics([{:localhost, 9092}])
+
+        assert {:error, %MatchError{term: {:error, "Ops"}}} == result
+      end
     end
   end
 
@@ -114,10 +111,10 @@ defmodule Elsa.TopicTest do
         ]
       }
 
-      allow :brod.get_metadata(any(), :all), return: {:ok, metadata}
-
-      assert Elsa.Topic.exists?([localhost: 9092], "elsa-other-topic") == true
-      assert Elsa.Topic.exists?([localhost: 9092], "missing-topic") == false
+      with_mock(:brod, [get_metadata: fn(_, :all) -> {:ok, metadata} end]) do
+        assert Elsa.Topic.exists?([localhost: 9092], "elsa-other-topic") == true
+        assert Elsa.Topic.exists?([localhost: 9092], "missing-topic") == false
+      end
     end
   end
 end

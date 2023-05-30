@@ -1,6 +1,5 @@
 defmodule Elsa.ProducerTest do
   use ExUnit.Case
-  use Placebo
   import TestHelper
 
   describe "produce_sync" do
@@ -14,8 +13,10 @@ defmodule Elsa.ProducerTest do
     end
 
     test "produce_sync fails with returning what messages did not get sent" do
-      allow :brod_producer.produce(any(), any(), any()), seq: [:ok, {:error, :some_reason}, :ok]
-      allow :brod_producer.sync_produce_request(any(), any()), return: {:ok, 0}
+      :meck.new(:brod_producer)
+      :meck.expect(:brod_producer, :produce, 3, :meck.seq([:ok, {:error, :some_reason}, :ok]))
+      :meck.expect(:brod_producer, :sync_produce_request, 2, {:ok, 0})
+
       Elsa.Registry.register_name({:elsa_registry_test_client, :"producer_topic-a_0"}, self())
 
       messages = Enum.map(1..2_000, fn i -> %{key: "", value: random_string(i)} end)
@@ -24,6 +25,8 @@ defmodule Elsa.ProducerTest do
       assert reason == "1331 messages succeeded before elsa producer failed midway through due to :some_reason"
       assert 2000 - 1331 == length(failed)
       assert failed == Enum.drop(messages, 1331)
+
+      :meck.unload(:brod_producer)
     end
   end
 
