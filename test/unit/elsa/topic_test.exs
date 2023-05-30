@@ -10,7 +10,7 @@ defmodule Elsa.TopicTest do
       with_mocks([
         {Elsa.Util, [:passthrough], [get_api_version: fn(_, :create_topics) -> :version end]},
         {:kpro_req_lib, [:passthrough], [create_topics: fn(_, _, _) -> :topic_request end]},
-        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:error, "some failure"} end]}
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:error, "some failure"} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
       ]) do
         internal_result = Elsa.create_topic([{:localhost, 9092}], "topic-to-create")
 
@@ -34,7 +34,7 @@ defmodule Elsa.TopicTest do
       with_mocks([
         {Elsa.Util, [:passthrough], [get_api_version: fn(_, :create_topics) -> :version end]},
         {:kpro_req_lib, [:passthrough], [create_topics: fn(_, _, _) -> :topic_request end]},
-        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end]}
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
       ]) do
         internal_result = Elsa.create_topic([{:localhost, 9092}], "elsa-topic")
 
@@ -58,7 +58,7 @@ defmodule Elsa.TopicTest do
       with_mocks([
         {Elsa.Util, [:passthrough], [get_api_version: fn(_, :delete_topics) -> :version end]},
         {:kpro_req_lib, [:passthrough], [delete_topics: fn(_, _, _) -> :topic_request end]},
-        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end]}
+        {:kpro, [:passthrough], [request_sync: fn(_, _, _) -> {:ok, kpro_rsp} end, connect_controller: fn(_, _) -> {:ok, "connected"} end]}
       ]) do
         internal_result = Elsa.delete_topic([{:localhost, 9092}], "elsa-topic")
 

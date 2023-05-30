@@ -10,14 +10,14 @@ defmodule Elsa.MixProject do
       name: "Elsa",
       version: @version,
       elixir: "~> 1.14",
-      start_permanent: config_env() == :prod,
+      start_permanent: Mix.env() == :prod,
       description: description(),
       package: package(),
       deps: deps(),
       homepage: @github,
       docs: docs(),
-      elixirc_paths: elixirc_paths(config_env()),
-      test_paths: test_paths(config_env()),
+      elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: test_paths(Mix.env()),
       dialyzer: [plt_file: {:no_warn, ".plt/#{System.version()}.plt"}]
     ]
   end
