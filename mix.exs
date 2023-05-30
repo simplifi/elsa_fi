@@ -6,8 +6,8 @@ defmodule Elsa.MixProject do
 
   def project do
     [
-      app: :elsa,
-      name: "Elsa",
+      app: :elsa_kafka,
+      name: "Elsa Kafka",
       version: @version,
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
