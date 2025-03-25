@@ -6,7 +6,7 @@ on:
 jobs:
   unit:
     name: Unit Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1
@@ -24,7 +24,7 @@ jobs:
           mix test
   integration:
     name: Integration Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1
@@ -41,7 +41,7 @@ jobs:
           mix test.integration
   static:
     name: Static Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1

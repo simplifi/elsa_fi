@@ -6,7 +6,7 @@ on:
 jobs:
   dialyzer:
     name: Cache PLT
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2
       - uses: erlef/setup-beam@v1
@@ -20,7 +20,7 @@ jobs:
           mix local.hex --force
           mix deps.get
       - name: Retrieve PLT
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         with:
           path: .plt
           key: plt-master
