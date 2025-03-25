@@ -1,13 +1,13 @@
 defmodule Elsa.MixProject do
   use Mix.Project
 
-  @version "2.0.0"
-  @github "https://github.com/UrbanOS-Public/elsa_kafka"
+  @version "0.0.1"
+  @github "https://github.com/simplifi/elsa_fi"
 
   def project do
     [
-      app: :elsa_kafka,
-      name: "Elsa Kafka",
+      app: :elsa_fi,
+      name: "Elsa.fi",
       version: @version,
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
@@ -49,14 +49,14 @@ defmodule Elsa.MixProject do
 
   defp package do
     [
-      maintainers: ["Smartcitiesdata"],
+      maintainers: ["Simpli.fi Development Team"],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => @github}
     ]
   end
 
   defp description do
-    "Elsa is a full-featured Kafka library written in Elixir and extending the :brod library with additional support from the :kafka_protocol Erlang libraries to provide capabilities not available in :brod."
+    "Elsa is a full-featured Kafka library written in Elixir and extending the :brod library with additional support from the :kafka_protocol Erlang libraries to provide capabilities not available in :brod. (Simpli.fi fork)"
   end
 
   defp docs do
