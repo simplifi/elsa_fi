@@ -5,6 +5,8 @@ defmodule Elsa.TopicTest do
 
   require Elsa.Topic
 
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
+
   describe "create_topic/3" do
     test "returns error tuple when topic fails to get created" do
       with_mocks([
@@ -16,7 +18,7 @@ defmodule Elsa.TopicTest do
            connect_controller: fn _, _ -> {:ok, "connected"} end
          ]}
       ]) do
-        internal_result = Elsa.create_topic([{:localhost, 9092}], "topic-to-create")
+        internal_result = Elsa.create_topic(@endpoints, "topic-to-create")
 
         assert {:error, "some failure"} == internal_result
       end
@@ -41,7 +43,7 @@ defmodule Elsa.TopicTest do
         {:kpro, [:passthrough],
          [request_sync: fn _, _, _ -> {:ok, kpro_rsp} end, connect_controller: fn _, _ -> {:ok, "connected"} end]}
       ]) do
-        internal_result = Elsa.create_topic([{:localhost, 9092}], "elsa-topic")
+        internal_result = Elsa.create_topic(@endpoints, "elsa-topic")
 
         assert {:error, {:topic_already_exists, "Topic 'elsa-topic' already exists."}} == internal_result
       end
@@ -67,7 +69,7 @@ defmodule Elsa.TopicTest do
         {:kpro, [:passthrough],
          [request_sync: fn _, _, _ -> {:ok, kpro_rsp} end, connect_controller: fn _, _ -> {:ok, "connected"} end]}
       ]) do
-        internal_result = Elsa.delete_topic([{:localhost, 9092}], "elsa-topic")
+        internal_result = Elsa.delete_topic(@endpoints, "elsa-topic")
 
         assert {:error, {:topic_doesnt_exist, :delete_topic_error}} == internal_result
       end
@@ -90,13 +92,13 @@ defmodule Elsa.TopicTest do
       }
 
       with_mock(:brod, get_metadata: fn _, :all -> {:ok, metadata} end) do
-        assert Elsa.list_topics(localhost: 9092) == {:ok, [{"elsa-other-topic", 1}, {"elsa-topic", 2}]}
+        assert Elsa.list_topics(@endpoints) == {:ok, [{"elsa-other-topic", 1}, {"elsa-topic", 2}]}
       end
     end
 
     test "returns error tuple if error is thrown from brod" do
       with_mock(:brod, get_metadata: fn _, :all -> {:error, "Ops"} end) do
-        result = Elsa.list_topics([{:localhost, 9092}])
+        result = Elsa.list_topics(@endpoints)
 
         assert {:error, %MatchError{term: {:error, "Ops"}}} == result
       end
@@ -119,8 +121,8 @@ defmodule Elsa.TopicTest do
       }
 
       with_mock(:brod, get_metadata: fn _, :all -> {:ok, metadata} end) do
-        assert Elsa.Topic.exists?([localhost: 9092], "elsa-other-topic") == true
-        assert Elsa.Topic.exists?([localhost: 9092], "missing-topic") == false
+        assert Elsa.Topic.exists?(@endpoints, "elsa-other-topic") == true
+        assert Elsa.Topic.exists?(@endpoints, "missing-topic") == false
       end
     end
   end

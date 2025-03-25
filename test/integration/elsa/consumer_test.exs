@@ -4,7 +4,9 @@ defmodule Elsa.ConsumerTest do
   import AsyncAssertion
   require Logger
 
-  @brokers [localhost: 9092]
+  @brokers Application.compile_env(:elsa_fi, :brokers)
+  # Hack time for brod not working right if you don't give it a moment to initialize
+  @brod_init_sleep_ms 500
 
   test "Elsa.Consumer will hand messages to the handler with state" do
     topic = "consumer-test1"
@@ -35,17 +37,17 @@ defmodule Elsa.ConsumerTest do
 
     Agent.start_link(fn -> [] end, name: :test_message_store)
 
-    {:ok, pid} =
-      Elsa.Supervisor.start_link(
-        connection: :name1,
-        endpoints: @brokers,
-        group_consumer: [
-          topics: [topic],
-          group: "group1",
-          handler: Testing.ExampleMessageHandlerWithoutState,
-          config: [begin_offset: :earliest]
-        ]
-      )
+    start_supervised(
+      {Elsa.Supervisor,
+       connection: :name1,
+       endpoints: @brokers,
+       group_consumer: [
+         topics: [topic],
+         group: "group2",
+         handler: Testing.ExampleMessageHandlerWithoutState,
+         config: [begin_offset: :earliest]
+       ]}
+    )
 
     send_messages(topic, ["message2"])
 
@@ -54,13 +56,79 @@ defmodule Elsa.ConsumerTest do
       assert 1 == length(messages)
       assert match?(%{topic: _topic, partition: 0, key: "", value: "message2"}, List.first(messages))
     end
+  end
 
-    Supervisor.stop(pid)
+  test "Elsa.Consumer will still send messages after reassignment" do
+    topic = "consumer-test3"
+    group = "group3"
+    Elsa.create_topic(@brokers, topic)
+
+    Agent.start_link(fn -> [] end, name: :test_message_store)
+
+    test_pid = self()
+
+    start_supervised({
+      Elsa.Supervisor,
+      connection: :name1,
+      endpoints: @brokers,
+      group_consumer: [
+        topics: [topic],
+        group: group,
+        handler: Testing.ExampleMessageHandlerWithoutState,
+        config: [begin_offset: :earliest],
+        assignments_revoked_handler: fn ->
+          send(test_pid, :assignments_revoked)
+          :ok
+        end
+      ]
+    })
+
+    send_messages(topic, ["message3"])
+
+    assert_async 40, 500, fn ->
+      messages = Agent.get(:test_message_store, fn s -> s end)
+      assert 1 == length(messages)
+      assert match?(%{topic: _topic, partition: 0, key: "", value: "message3"}, List.first(messages))
+    end
+
+    # Create, then destroy another group subscriber to force a rebalance
+    {:ok, dummy_pid} =
+      Elsa.Supervisor.start_link(
+        connection: :name2,
+        endpoints: @brokers,
+        group_consumer: [
+          topics: [topic],
+          group: group,
+          handler: Testing.ExampleMessageHandlerWithoutState,
+          config: [begin_offset: :latest]
+        ]
+      )
+
+    assert_receive :assignments_revoked
+
+    Supervisor.stop(dummy_pid)
+
+    assert_receive :assignments_revoked
+
+    send_messages(topic, ["message4"])
+
+    assert_async 40, 500, fn ->
+      messages = Agent.get(:test_message_store, fn s -> s end)
+      assert 2 == length(messages)
+      assert match?(%{topic: _topic, partition: 0, key: "", value: "message4"}, List.last(messages))
+    end
   end
 
   defp send_messages(topic, messages) do
     :brod.start_link_client(@brokers, :test_client)
     :brod.start_producer(:test_client, topic, [])
+
+    on_exit(fn ->
+      :brod_client.stop_producer(:test_client, topic)
+      :brod.stop_client(:test_client)
+    end)
+
+    :timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.with_index()
@@ -75,12 +143,10 @@ defmodule Testing.ExampleMessageHandlerWithState do
   use Elsa.Consumer.MessageHandler
 
   def init(args) do
-    IO.inspect(args, label: "handler init")
     {:ok, args}
   end
 
   def handle_messages(messages, state) do
-    IO.inspect(messages, label: "handler messages")
     Enum.each(messages, &send(state.pid, {:message, &1}))
 
     {:ack, state}

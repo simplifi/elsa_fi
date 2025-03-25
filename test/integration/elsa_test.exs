@@ -3,7 +3,7 @@ defmodule ElsaTest do
   use Divo
   require Elsa
 
-  @endpoints [localhost: 9092]
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
 
   describe "list_topics/1" do
     test "will return topics given a client identifier" do
@@ -57,7 +57,7 @@ defmodule ElsaTest do
       Elsa.produce(@endpoints, "topic1", {"key", "value1"})
       Elsa.produce(@endpoints, "topic1", [{"key2", "value2"}])
 
-      {:ok, {_count, messages}} = :brod.fetch([{'localhost', 9092}], "topic1", 0, 0)
+      {:ok, {_count, messages}} = :brod.fetch(@endpoints, "topic1", 0, 0)
 
       parsed_messages = Enum.map(messages, fn msg -> Elsa.Message.new(msg, topic: "topic1", partition: 0) end)
 

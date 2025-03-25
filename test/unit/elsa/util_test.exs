@@ -6,6 +6,8 @@ defmodule Elsa.UtilTest do
 
   alias Elsa.Util
 
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
+
   describe "with_connection/2" do
     test "runs function with connection" do
       with_mock(:kpro,
@@ -13,13 +15,13 @@ defmodule Elsa.UtilTest do
         close_connection: fn _ -> :ok end
       ) do
         result =
-          Util.with_connection([localhost: 9092], fn connection ->
+          Util.with_connection(@endpoints, fn connection ->
             assert :connection == connection
             :return_value
           end)
 
         assert :return_value == result
-        assert_called_exactly(:kpro.connect_any([{'localhost', 9092}], []), 1)
+        assert_called_exactly(:kpro.connect_any(Util.reformat_endpoints(@endpoints), []), 1)
         assert_called_exactly(:kpro.close_connection(:connection), 1)
       end
     end
@@ -30,13 +32,13 @@ defmodule Elsa.UtilTest do
       :meck.expect(:kpro, :close_connection, 1, :ok)
 
       result =
-        Util.with_connection([localhost: 9092], :controller, fn connection ->
+        Util.with_connection(@endpoints, :controller, fn connection ->
           assert :connection == connection
           :return_value
         end)
 
       assert :return_value == result
-      assert_called_exactly(:kpro.connect_controller([{'localhost', 9092}], []), 1)
+      assert_called_exactly(:kpro.connect_controller(Util.reformat_endpoints(@endpoints), []), 1)
       assert_called_exactly(:kpro.close_connection(:connection), 1)
 
       :meck.unload(:kpro)
@@ -48,7 +50,7 @@ defmodule Elsa.UtilTest do
         close_connection: fn _ -> :ok end
       ) do
         try do
-          Util.with_connection([localhost: 9092], fn _connection ->
+          Util.with_connection(@endpoints, fn _connection ->
             raise "some error"
           end)
 
@@ -64,7 +66,7 @@ defmodule Elsa.UtilTest do
     data_test "raises exception when unable to create connection" do
       with_mock(:kpro, connect_any: fn _, _ -> {:error, reason} end) do
         assert_raise(Elsa.ConnectError, message, fn ->
-          Util.with_connection([{'localhost', 9092}], fn _connection -> nil end)
+          Util.with_connection(@endpoints, fn _connection -> nil end)
         end)
 
         assert_not_called(:kpro.close_connection(:_))
