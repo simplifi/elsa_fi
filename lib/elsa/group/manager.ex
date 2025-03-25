@@ -212,7 +212,7 @@ defmodule Elsa.Group.Manager do
 
   def terminate(reason, state) do
     Logger.debug(fn -> "#{__MODULE__} : Terminating #{state.connection}" end)
-    WorkerManager.stop_all_workers(state.connection, state.workers)
+    _ = WorkerManager.stop_all_workers(state.connection, state.workers)
 
     shutdown_and_wait(state.acknowledger_pid)
     shutdown_and_wait(state.group_coordinator_pid)

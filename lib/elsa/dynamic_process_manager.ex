@@ -58,7 +58,7 @@ defmodule Elsa.DynamicProcessManager do
     start_children(state.dynamic_supervisor, state.child_specs)
 
     new_state = start_new_children(state)
-    setup_poll(state.poll)
+    _ = setup_poll(state.poll)
 
     {:noreply, new_state}
   end
@@ -77,7 +77,7 @@ defmodule Elsa.DynamicProcessManager do
   def handle_info(:poll, state) do
     Logger.debug(fn -> "#{__MODULE__} for #{inspect(state.dynamic_supervisor)}: Polling for new children" end)
     new_state = start_new_children(state)
-    setup_poll(state.poll)
+    _ = setup_poll(state.poll)
     {:noreply, new_state}
   end
 

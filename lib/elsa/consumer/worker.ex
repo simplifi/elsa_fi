@@ -44,7 +44,7 @@ defmodule Elsa.Consumer.Worker do
           begin_offset: non_neg_integer,
           handler: module,
           handler_init_args: term,
-          config: :brod.consumer_options()
+          config: :brod.consumer_config()
         ]
 
   @doc """
@@ -133,7 +133,7 @@ defmodule Elsa.Consumer.Worker do
   end
 
   def terminate(reason, state) do
-    :brod_consumer.unsubscribe(state.consumer_pid, self())
+    _ = :brod_consumer.unsubscribe(state.consumer_pid, self())
     Process.exit(state.consumer_pid, reason)
     state
   end
@@ -152,8 +152,6 @@ defmodule Elsa.Consumer.Worker do
 
   defp ack_messages(topic, partition, offset, state) do
     Elsa.Group.Acknowledger.ack(state.connection, topic, partition, state.generation_id, offset)
-
-    offset
   end
 
   defp start_consumer(connection, topic, partition, config) do

@@ -18,7 +18,7 @@ defmodule Elsa.MixProject do
       docs: docs(),
       elixirc_paths: elixirc_paths(Mix.env()),
       test_paths: test_paths(Mix.env()),
-      dialyzer: [plt_file: {:no_warn, ".plt/#{System.version()}.plt"}]
+      dialyzer: dialyzer()
     ]
   end
 
@@ -37,7 +37,23 @@ defmodule Elsa.MixProject do
       {:mock, "~> 0.3", only: [:dev, :test]},
       {:checkov, "~> 1.0", only: [:test, :integration]},
       {:ex_doc, "~> 0.29", only: [:dev]},
-      {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+    ]
+  end
+
+  defp dialyzer do
+    [
+      # include all direct dependencies
+      plt_add_deps: :apps_direct,
+      # add any indirect dependencies that are still used directly in our code
+      plt_add_apps: [
+        :kafka_protocol
+      ],
+      flags: [
+        :unmatched_returns,
+        :error_handling
+      ],
+      list_unused_filters: true
     ]
   end
 
