@@ -66,7 +66,7 @@ defmodule Elsa.MixProject do
   defp package do
     [
       maintainers: ["Simpli.fi Development Team"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{"GitHub" => @github}
     ]
   end
