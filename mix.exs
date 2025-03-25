@@ -1,14 +1,13 @@
 defmodule Elsa.MixProject do
   use Mix.Project
 
-  @version "0.0.1"
   @github "https://github.com/simplifi/elsa_fi"
 
   def project do
     [
       app: :elsa_fi,
       name: "Elsa.fi",
-      version: @version,
+      version: version(),
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       description: description(),
@@ -73,6 +72,25 @@ defmodule Elsa.MixProject do
 
   defp description do
     "Elsa is a full-featured Kafka library written in Elixir and extending the :brod library with additional support from the :kafka_protocol Erlang libraries to provide capabilities not available in :brod. (Simpli.fi fork)"
+  end
+
+  # Auto version stamp, a la CoMix.
+  defp version do
+    default_version = "0.0.1-tagless"
+
+    case :file.consult("hex_metadata.config") do
+      # Use version from hex_metadata when we're a package
+      {:ok, data} ->
+        {"version", version} = List.keyfind(data, "version", 0)
+        version
+
+      # Otherwise, use git version
+      _ ->
+        case System.cmd("git", ["describe", "--tags"]) do
+          {"v" <> version, 0} -> String.trim(version)
+          _ -> default_version
+        end
+    end
   end
 
   defp docs do
