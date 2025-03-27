@@ -7,10 +7,9 @@ defmodule Elsa.Consumer.WorkerTest do
   import Elsa.Message, only: [kafka_message: 1]
 
   describe "handle_info/2" do
-
     setup_with_mocks([
-      {Elsa.Group.Acknowledger, [], [ack: fn(_, _, _, _, _) -> :ok end]},
-      {:brod_consumer, [], [ack: fn(_, _) -> :ok end]}
+      {Elsa.Group.Acknowledger, [], [ack: fn _, _, _, _, _ -> :ok end]},
+      {:brod_consumer, [], [ack: fn _, _ -> :ok end]}
     ]) do
       init_args = [
         connection: :test_name,
@@ -66,8 +65,8 @@ defmodule Elsa.Consumer.WorkerTest do
 
       Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
 
-      assert_not_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_)
-      assert_called :brod_consumer.ack(:_, 14)
+      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
+      assert_called(:brod_consumer.ack(:_, 14))
     end
 
     data_test "acking without a generation_id continues to consume messages", %{
@@ -80,8 +79,8 @@ defmodule Elsa.Consumer.WorkerTest do
       end)
 
       Elsa.Consumer.Worker.handle_info({:some_pid, messages}, Map.put(state, :generation_id, nil))
-      assert_not_called Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_)
-      assert_called :brod_consumer.ack(:_, 13)
+      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
+      assert_called(:brod_consumer.ack(:_, 13))
 
       where ack: [:ack, :acknowledge]
     end

@@ -8,10 +8,10 @@ defmodule Elsa.UtilTest do
 
   describe "with_connection/2" do
     test "runs function with connection" do
-      with_mock(:kpro, [
-        connect_any: fn(_, _) -> {:ok, :connection} end,
-        close_connection: fn(_) -> :ok end
-      ]) do
+      with_mock(:kpro,
+        connect_any: fn _, _ -> {:ok, :connection} end,
+        close_connection: fn _ -> :ok end
+      ) do
         result =
           Util.with_connection([localhost: 9092], fn connection ->
             assert :connection == connection
@@ -19,8 +19,8 @@ defmodule Elsa.UtilTest do
           end)
 
         assert :return_value == result
-        assert_called_exactly :kpro.connect_any([{'localhost', 9092}], []), 1
-        assert_called_exactly :kpro.close_connection(:connection), 1
+        assert_called_exactly(:kpro.connect_any([{'localhost', 9092}], []), 1)
+        assert_called_exactly(:kpro.close_connection(:connection), 1)
       end
     end
 
@@ -36,17 +36,17 @@ defmodule Elsa.UtilTest do
         end)
 
       assert :return_value == result
-      assert_called_exactly :kpro.connect_controller([{'localhost', 9092}], []), 1
-      assert_called_exactly :kpro.close_connection(:connection), 1
+      assert_called_exactly(:kpro.connect_controller([{'localhost', 9092}], []), 1)
+      assert_called_exactly(:kpro.close_connection(:connection), 1)
 
       :meck.unload(:kpro)
     end
 
     test "calls close_connection when fun raises an error" do
-      with_mock(:kpro, [
-        connect_any: fn(_, _) -> {:ok, :connection} end,
-        close_connection: fn(_) -> :ok end
-      ]) do
+      with_mock(:kpro,
+        connect_any: fn _, _ -> {:ok, :connection} end,
+        close_connection: fn _ -> :ok end
+      ) do
         try do
           Util.with_connection([localhost: 9092], fn _connection ->
             raise "some error"
@@ -57,17 +57,17 @@ defmodule Elsa.UtilTest do
           e in RuntimeError -> assert Exception.message(e) == "some error"
         end
 
-        assert_called_exactly :kpro.close_connection(:connection), 1
+        assert_called_exactly(:kpro.close_connection(:connection), 1)
       end
     end
 
     data_test "raises exception when unable to create connection" do
-      with_mock(:kpro, [connect_any: fn(_, _) -> {:error, reason} end]) do
+      with_mock(:kpro, connect_any: fn _, _ -> {:error, reason} end) do
         assert_raise(Elsa.ConnectError, message, fn ->
           Util.with_connection([{'localhost', 9092}], fn _connection -> nil end)
         end)
 
-        assert_not_called :kpro.close_connection(:_)
+        assert_not_called(:kpro.close_connection(:_))
       end
 
       where([
