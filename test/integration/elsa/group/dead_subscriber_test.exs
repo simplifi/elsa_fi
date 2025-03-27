@@ -2,21 +2,28 @@ defmodule Elsa.Group.SubscriberDeadTest do
   use ExUnit.Case
   use Divo
 
-  @brokers Application.get_env(:elsa, :brokers)
+  @brokers Application.compile_env(:elsa_fi, :brokers)
+  # Hack time for brod not working right if you don't give it a moment to initialize
+  @brod_init_sleep_ms 500
+  @topic "dead-subscriber-topic"
 
   test "dead subscriber" do
+    Elsa.create_topic(@brokers, "dead-subscriber-topic", partitions: 2)
+
     {:ok, pid} =
       Elsa.Supervisor.start_link(
         connection: :name1,
         endpoints: @brokers,
         group_consumer: [
-          group: "group1",
-          topics: ["elsa-topic"],
+          group: "group_dead_subscriber",
+          topics: [@topic],
           handler: Test.BasicHandler,
           handler_init_args: %{pid: self()},
           config: [begin_offset: :earliest]
         ]
       )
+
+    :timer.sleep(@brod_init_sleep_ms)
 
     send_messages(0, ["message1"])
     send_messages(1, ["message2"])
@@ -48,16 +55,23 @@ defmodule Elsa.Group.SubscriberDeadTest do
 
   defp send_messages(partition, messages) do
     :brod.start_link_client(@brokers, :test_client)
-    :brod.start_producer(:test_client, "elsa-topic", [])
+    :brod.start_producer(:test_client, @topic, [])
+
+    on_exit(fn ->
+      :brod_client.stop_producer(:test_client, @topic)
+      :brod.stop_client(:test_client)
+    end)
+
+    :timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.each(fn msg ->
-      :brod.produce_sync(:test_client, "elsa-topic", partition, "", msg)
+      :brod.produce_sync(:test_client, @topic, partition, "", msg)
     end)
   end
 
   defp kill_worker(partition) do
-    worker_pid = Elsa.Registry.whereis_name({:elsa_registry_name1, :"worker_elsa-topic_#{partition}"})
+    worker_pid = Elsa.Registry.whereis_name({:elsa_registry_name1, :"worker_#{@topic}_#{partition}"})
     Process.exit(worker_pid, :kill)
 
     assert false == Process.alive?(worker_pid)

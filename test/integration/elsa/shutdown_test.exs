@@ -3,7 +3,7 @@ defmodule Elsa.ShutdownTest do
   use Divo
   import AssertAsync
 
-  @endpoints [localhost: 9092]
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
 
   test "non direct ACKs duplicate data" do
     setup_topic("shutdown-topic")

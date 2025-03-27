@@ -8,10 +8,11 @@ defmodule Elsa.Group.LifecycleHooksTest do
   import Mock
 
   setup_with_mocks([
-    {WorkerManager, [], [
-      start_worker: fn(_, _, _, _) -> :workers end,
-      stop_all_workers: fn(_, _) -> :workers end
-    ]}
+    {WorkerManager, [],
+     [
+       start_worker: fn _, _, _, _ -> :workers end,
+       stop_all_workers: fn _, _ -> :workers end
+     ]}
   ]) do
     test_pid = self()
     Agent.start_link(fn -> test_pid end, name: __MODULE__)
@@ -38,8 +39,8 @@ defmodule Elsa.Group.LifecycleHooksTest do
 
   test "assignments_recieved calls lifecycle hook", %{state: state} do
     with_mocks([
-      {Registry, [], [whereis_name: fn(_) -> :ack_pid end]},
-      {Acknowledger, [], [update_generation_id: fn(_, _) -> :ok end]}
+      {Registry, [], [whereis_name: fn _ -> :ack_pid end]},
+      {Acknowledger, [], [update_generation_id: fn _, _ -> :ok end]}
     ]) do
       assignments = [
         brod_received_assignment(topic: "topic1", partition: 0, begin_offset: 0),
@@ -69,7 +70,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
         error_state
       )
 
-    assert_not_called WorkerManager.start_worker(:_, :_, :_, :_)
+    assert_not_called(WorkerManager.start_worker(:_, :_, :_, :_))
   end
 
   test "assignments_revoked calls lifecycle hook", %{state: state} do

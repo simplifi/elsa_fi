@@ -35,7 +35,7 @@ of the arguments as they might be defined in the application environment `config
 or `runtime.exs` files.
 
 ```elixir
-config :my_app, :elsa,
+config :my_app, :elsa_fi,
   endpoints: [localhost: 9092],
   name: :myapp_elsa,
   producer: [
