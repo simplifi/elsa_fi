@@ -1,14 +1,14 @@
 defmodule Elsa.Group.LifecycleHooksTest do
   use ExUnit.Case
 
-  alias Elsa.Group.Manager.WorkerManager
+  alias Elsa.Group.Manager.WorkerSupervisor
   alias Elsa.Registry
   alias Elsa.Group.Acknowledger
   import Elsa.Group.Manager, only: [brod_received_assignment: 1]
   import Mock
 
   setup_with_mocks([
-    {WorkerManager, [],
+    {WorkerSupervisor, [],
      [
        start_worker: fn _, _, _, _ -> :workers end,
        stop_all_workers: fn _, _ -> :workers end
@@ -70,7 +70,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
         error_state
       )
 
-    assert_not_called(WorkerManager.start_worker(:_, :_, :_, :_))
+    assert_not_called(WorkerSupervisor.start_worker(:_, :_, :_, :_))
   end
 
   test "assignments_revoked calls lifecycle hook", %{state: state} do

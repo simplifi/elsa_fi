@@ -1,10 +1,16 @@
-defmodule Elsa.Group.Manager.WorkerManager do
+defmodule Elsa.Group.Manager.WorkerSupervisor do
   @moduledoc """
   Provides functions to encapsulate the management of worker
   processes by the consumer group manager.
   """
+  use Supervisor, restart: :transient
+
   import Record, only: [defrecord: 2, extract: 2]
   import Elsa.Supervisor, only: [registry: 1]
+
+  alias Elsa.Util
+
+  require Logger
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 
@@ -13,6 +19,25 @@ defmodule Elsa.Group.Manager.WorkerManager do
     Tracks the running state of the worker process from the perspective of the group manager.
     """
     defstruct [:pid, :ref, :generation_id, :topic, :partition, :latest_offset]
+  end
+
+  def start_link(opts) do
+    connection = Keyword.fetch!(opts, :connection)
+    Supervisor.start_link(__MODULE__, opts, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
+  end
+
+  @impl true
+  def init(opts) do
+    connection = Keyword.fetch!(opts, :connection)
+
+    Logger.info("Initializing WorkerSupervisor #{inspect(self())} for connection #{inspect(connection)}")
+
+    children = [
+      {DynamicSupervisor,
+       [id: :worker_dynamic_supervisor, name: {:via, Elsa.Registry, {registry(connection), :worker_dynamic_supervisor}}]}
+    ]
+
+    Supervisor.init(children, strategy: :one_for_one, restart: :transient)
   end
 
   @doc """
@@ -26,18 +51,30 @@ defmodule Elsa.Group.Manager.WorkerManager do
   end
 
   @doc """
-  Iterate over all workers managed by the group manager and issue the unsubscribe call
-  to disengage from the topic/partition and shut down gracefully.
+  Terminate all workers under the supervisor, giving them a chance to exit gracefully.
   """
   @spec stop_all_workers(Elsa.connection(), map()) :: map()
   def stop_all_workers(connection, workers) do
-    supervisor = {:via, Elsa.Registry, {registry(connection), :worker_supervisor}}
-
+    # Demonitor all the workers, so that our client doesn't get a bunch of :EXIT signals
     workers
     |> Map.values()
     |> Enum.each(fn worker ->
+      Logger.info("Gracefully stopping group worker #{inspect(worker)}")
       Process.demonitor(worker.ref)
-      DynamicSupervisor.terminate_child(supervisor, worker.pid)
+    end)
+
+    # Stop the dynamic supervisor in , which will in turn stop all of the children
+    Util.with_registry(connection, fn registry ->
+      # This is the Supervisor created in start_link, for this specific connection.
+      module_supervisor = Elsa.Registry.whereis_name({registry, __MODULE__})
+      # This is the DynamicSupervisor created in init
+      dynamic_worker_supervisor = Elsa.Registry.whereis_name({registry, :worker_dynamic_supervisor})
+
+      # Synchronously stops the DynamicSupervisor and its children
+      DynamicSupervisor.stop(dynamic_worker_supervisor)
+
+      # Restart the dynamic supervisor
+      _ = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
     end)
 
     %{}
@@ -85,7 +122,9 @@ defmodule Elsa.Group.Manager.WorkerManager do
       config: state.config
     ]
 
-    supervisor = {:via, Elsa.Registry, {registry(state.connection), :worker_supervisor}}
+    Logger.info("Starting group consumer worker: #{inspect(init_args)}")
+
+    supervisor = {:via, Elsa.Registry, {registry(state.connection), :worker_dynamic_supervisor}}
     {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Elsa.Consumer.Worker, init_args})
     ref = Process.monitor(worker_pid)
 
@@ -97,6 +136,8 @@ defmodule Elsa.Group.Manager.WorkerManager do
       partition: assignment.partition,
       latest_offset: assignment.begin_offset
     }
+
+    Logger.info("Group consumer worker started: #{inspect(new_worker)}")
 
     Map.put(workers, {assignment.topic, assignment.partition}, new_worker)
   end
