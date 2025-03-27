@@ -8,7 +8,7 @@ jobs:
     name: Unit Test
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: 25.3.2
@@ -26,11 +26,21 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: 22.3
-          elixir-version: 1.10.4
+          otp-version: 25.3
+          elixir-version: 1.14.4
+      - name: Compose V1 Setup
+        run: |
+          mkdir "${HOME}/docker-compose"
+          cd "${HOME}/docker-compose"
+          wget https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64 -O docker-compose
+          chmod +x docker-compose
+          echo "${HOME}/docker-compose" >> "$GITHUB_PATH"
+          echo "docker compose v1 setup complete"
+          export PATH="$PWD:$PATH"
+        shell: bash
       - name: Get dependencies
         run: |
           mix local.rebar --force
@@ -43,11 +53,11 @@ jobs:
     name: Static Analysis
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: 22.3
-          elixir-version: 1.10.4
+          otp-version: 25.3
+          elixir-version: 1.14.4
       - name: Get dependencies
         run: |
           mix local.rebar --force
