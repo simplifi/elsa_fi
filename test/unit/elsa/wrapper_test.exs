@@ -57,8 +57,7 @@ defmodule Elsa.WrapperTest do
   end
 
   test "adds an artificial delay when wrapped process dies" do
-    {:ok, pid} =
-      Wrapper.start_link(delay: 2_000, mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
+    {:ok, pid} = Wrapper.start_link(delay: 2_000, mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
 
     Process.whereis(:agent_0) |> Process.exit(:kill)
 
@@ -87,8 +86,7 @@ defmodule Elsa.WrapperTest do
   end
 
   test "registers process with elsa registry" do
-    {:ok, pid} =
-      Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end]}, register: {@registry, :agent})
+    {:ok, pid} = Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end]}, register: {@registry, :agent})
 
     assert :agent_state = Agent.get({:via, ElsaRegistry, {@registry, :agent}}, fn s -> s end)
 
