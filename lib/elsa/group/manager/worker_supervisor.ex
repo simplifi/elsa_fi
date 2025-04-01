@@ -21,12 +21,20 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     defstruct [:pid, :ref, :generation_id, :topic, :partition, :latest_offset]
   end
 
+  @doc """
+  Start the main Supervisor.  On init this will start a single DynamicSupervisor as a child.
+
+  Options:
+    :connection - Elsa.connection that will identify this supervisor in the Elsa registry.
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     connection = Keyword.fetch!(opts, :connection)
     Supervisor.start_link(__MODULE__, opts, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
   end
 
   @impl true
+  @spec init(keyword()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
   def init(opts) do
     connection = Keyword.fetch!(opts, :connection)
 
@@ -37,7 +45,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
        [id: :worker_dynamic_supervisor, name: {:via, Elsa.Registry, {registry(connection), :worker_dynamic_supervisor}}]}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one, restart: :transient)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
   @doc """
