@@ -25,7 +25,7 @@ defmodule Elsa.Util do
   """
   @spec with_registry(atom() | String.t(), (atom() -> term())) :: term() | {:error, String.t()}
   def with_registry(connection, function) when is_function(function, 1) do
-    registry = Elsa.Supervisor.registry(connection)
+    registry = Elsa.ElsaSupervisor.registry(connection)
 
     case Process.whereis(registry) do
       nil -> {:error, "Elsa with connection #{connection} has not been started correctly"}
@@ -39,7 +39,7 @@ defmodule Elsa.Util do
   """
   @spec with_client(atom(), (pid() -> term())) :: term() | {:error, String.t()}
   def with_client(registry, function) when is_function(function, 1) do
-    case Elsa.Registry.whereis_name({registry, :brod_client}) do
+    case Elsa.ElsaRegistry.whereis_name({registry, :brod_client}) do
       :undefined -> {:error, "Unable to find brod_client in registry(#{registry})"}
       pid -> function.(pid)
     end

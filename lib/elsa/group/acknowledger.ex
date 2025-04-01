@@ -6,15 +6,16 @@ defmodule Elsa.Group.Acknowledger do
   when events such as a rebalance occur.
   """
   use GenServer
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+  alias Elsa.ElsaRegistry
   require Logger
-  import Elsa.Supervisor, only: [registry: 1]
 
   @doc """
   Trigger acknowledgement of processed messages back to the cluster.
   """
   @spec ack(Elsa.connection(), Elsa.topic(), Elsa.partition(), Elsa.Group.Manager.generation_id(), integer()) :: :ok
   def ack(connection, topic, partition, generation_id, offset) do
-    acknowledger = {:via, Elsa.Registry, {registry(connection), __MODULE__}}
+    acknowledger = {:via, ElsaRegistry, {registry(connection), __MODULE__}}
     GenServer.cast(acknowledger, {:ack, topic, partition, generation_id, offset})
   end
 
@@ -54,7 +55,7 @@ defmodule Elsa.Group.Acknowledger do
   @spec start_link(term()) :: GenServer.on_start()
   def start_link(opts) do
     connection = Keyword.fetch!(opts, :connection)
-    GenServer.start_link(__MODULE__, opts, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
+    GenServer.start_link(__MODULE__, opts, name: {:via, ElsaRegistry, {registry(connection), __MODULE__}})
   end
 
   @impl GenServer
@@ -73,7 +74,7 @@ defmodule Elsa.Group.Acknowledger do
 
   @impl GenServer
   def handle_continue(:get_coordinator, state) do
-    group_coordinator_pid = Elsa.Registry.whereis_name({registry(state.connection), :brod_group_coordinator})
+    group_coordinator_pid = ElsaRegistry.whereis_name({registry(state.connection), :brod_group_coordinator})
 
     {:noreply, %{state | group_coordinator_pid: group_coordinator_pid}}
   end

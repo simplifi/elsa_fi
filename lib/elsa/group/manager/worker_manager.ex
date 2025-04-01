@@ -4,9 +4,10 @@ defmodule Elsa.Group.Manager.WorkerManager do
   processes by the consumer group manager.
   """
   import Record, only: [defrecord: 2, extract: 2]
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
 
   alias Elsa.Consumer.Worker
+  alias Elsa.ElsaRegistry
   alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager
   alias Elsa.Group.Manager.State
@@ -36,7 +37,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
   """
   @spec stop_all_workers(Elsa.connection(), map()) :: map()
   def stop_all_workers(connection, workers) do
-    supervisor = {:via, Elsa.Registry, {registry(connection), :worker_supervisor}}
+    supervisor = {:via, ElsaRegistry, {registry(connection), :worker_supervisor}}
 
     workers
     |> Map.values()
@@ -59,7 +60,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
 
     latest_offset =
       Acknowledger.get_latest_offset(
-        {:via, Elsa.Registry, {registry(state.connection), Acknowledger}},
+        {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
         worker.topic,
         worker.partition
       ) || worker.latest_offset
@@ -90,7 +91,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
       config: state.config
     ]
 
-    supervisor = {:via, Elsa.Registry, {registry(state.connection), :worker_supervisor}}
+    supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_supervisor}}
     {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
     ref = Process.monitor(worker_pid)
 

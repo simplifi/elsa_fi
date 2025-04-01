@@ -7,10 +7,14 @@ defmodule Elsa.Consumer.Worker do
   notify the cluster the messages have been successfully processed.
   """
   use GenServer, restart: :temporary, shutdown: 10_000
-  require Logger
 
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
   import Record, only: [defrecord: 2, extract: 2]
+
+  alias Elsa.ElsaRegistry
+  alias Elsa.Group.Acknowledger
+
+  require Logger
 
   defrecord :kafka_message_set, extract(:kafka_message_set, from_lib: "brod/include/brod.hrl")
 
@@ -74,7 +78,7 @@ defmodule Elsa.Consumer.Worker do
     Process.put(:elsa_partition, state.partition)
     Process.put(:elsa_generation_id, state.generation_id)
 
-    Elsa.Registry.register_name({registry(state.connection), :"worker_#{state.topic}_#{state.partition}"}, self())
+    ElsaRegistry.register_name({registry(state.connection), :"worker_#{state.topic}_#{state.partition}"}, self())
 
     {:ok, state, {:continue, :subscribe}}
   end
@@ -83,7 +87,7 @@ defmodule Elsa.Consumer.Worker do
     registry = registry(state.connection)
 
     with {:ok, consumer_pid} <- start_consumer(state.connection, state.topic, state.partition, state.config),
-         :yes <- Elsa.Registry.register_name({registry, :"consumer_#{state.topic}_#{state.partition}"}, consumer_pid),
+         :yes <- ElsaRegistry.register_name({registry, :"consumer_#{state.topic}_#{state.partition}"}, consumer_pid),
          :ok <- subscribe(consumer_pid, state) do
       {:ok, handler_state} = state.handler.init(state.handler_init_args)
 
@@ -154,7 +158,7 @@ defmodule Elsa.Consumer.Worker do
 
   defp start_consumer(connection, topic, partition, config) do
     registry = registry(connection)
-    brod_client = Elsa.Registry.whereis_name({registry, :brod_client})
+    brod_client = ElsaRegistry.whereis_name({registry, :brod_client})
     :brod_consumer.start_link(brod_client, topic, partition, config)
   end
 

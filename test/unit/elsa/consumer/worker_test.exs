@@ -3,9 +3,11 @@ defmodule Elsa.Consumer.WorkerTest do
 
   import Checkov
   import Mock
-  import Elsa.Consumer.Worker
-  import Elsa.Group.Acknowledger
+  import Elsa.Consumer.Worker, only: [kafka_message_set: 1]
   import Elsa.Message, only: [kafka_message: 1]
+
+  alias Elsa.Consumer.Worker
+  alias Elsa.Group.Acknowledger
 
   describe "handle_info/2" do
     setup_with_mocks([

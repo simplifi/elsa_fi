@@ -1,5 +1,8 @@
 defmodule Elsa.Consumer.Worker.Initializer do
   @moduledoc false
+
+  alias Elsa.ElsaRegistry
+
   @type init_opts :: [
           connection: atom(),
           registry: atom(),
@@ -11,7 +14,7 @@ defmodule Elsa.Consumer.Worker.Initializer do
     registry = Keyword.fetch!(init_arg, :registry)
     topics = Keyword.fetch!(init_arg, :topics)
 
-    brod_client = Elsa.Registry.whereis_name({registry, :brod_client})
+    brod_client = ElsaRegistry.whereis_name({registry, :brod_client})
 
     Enum.map(topics, &configure_topic(&1, registry, brod_client, init_arg))
     |> List.flatten()
@@ -39,7 +42,7 @@ defmodule Elsa.Consumer.Worker.Initializer do
 
     {Elsa.Consumer.Worker,
      init_arg
-     |> Keyword.put(:name, {:via, Elsa.Registry, {registry, name}})
+     |> Keyword.put(:name, {:via, ElsaRegistry, {registry, name}})
      |> Keyword.put(:topic, topic)
      |> Keyword.put(:partition, partition)}
     |> Supervisor.child_spec(id: name)

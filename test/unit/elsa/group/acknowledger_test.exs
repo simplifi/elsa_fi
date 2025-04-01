@@ -1,12 +1,13 @@
 defmodule Elsa.Group.AcknowledgerTest do
   use ExUnit.Case
 
+  alias Elsa.ElsaRegistry
+  alias Elsa.ElsaSupervisor
   alias Elsa.Group.Acknowledger
-  alias Elsa.{Registry, Supervisor}
 
   setup do
-    {:ok, registry} = Registry.start_link(name: Supervisor.registry(:connection))
-    :yes = Registry.register_name({registry, :brod_group_coordinator}, self())
+    {:ok, registry} = ElsaRegistry.start_link(name: ElsaSupervisor.registry(:connection))
+    :yes = ElsaRegistry.register_name({registry, :brod_group_coordinator}, self())
     {:ok, acknowledger} = Acknowledger.start_link(connection: :connection)
     Process.unlink(registry)
     Process.unlink(acknowledger)
@@ -30,7 +31,7 @@ defmodule Elsa.Group.AcknowledgerTest do
   end
 
   test "acks messages and increments the offset", %{acknowledger: acknowledger, registry: registry} do
-    :yes = Registry.register_name({registry, :"consumer_elsa-topic_0"}, self())
+    :yes = ElsaRegistry.register_name({registry, :"consumer_elsa-topic_0"}, self())
     :ok = Acknowledger.ack(:connection, "elsa-topic", 0, 1, 2)
 
     Process.sleep(50)

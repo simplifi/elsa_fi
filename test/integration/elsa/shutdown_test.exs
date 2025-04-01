@@ -10,18 +10,18 @@ defmodule Elsa.ShutdownTest do
     test_pid = self()
     options = elsa_options("shutdown-topic", test_pid)
 
-    {:ok, first_run_pid} = start_supervised({Elsa.Supervisor, options})
+    {:ok, first_run_pid} = start_supervised({Elsa.ElsaSupervisor, options})
     assert_receive {:message, %Elsa.Message{value: "a"}}, 5_000
     assert_receive {:message, %Elsa.Message{value: "b"}}, 5_000
     assert_receive {:message, %Elsa.Message{value: "c"}}, 5_000
 
-    stop_supervised(Elsa.Supervisor)
+    stop_supervised(Elsa.ElsaSupervisor)
 
     assert_async sleep: 1_000, max_tries: 60 do
       assert false == Process.alive?(first_run_pid)
     end
 
-    {:ok, _second_run_pid} = start_supervised({Elsa.Supervisor, options})
+    {:ok, _second_run_pid} = start_supervised({Elsa.ElsaSupervisor, options})
     # give it time to pull in duplicates if they are there
     Process.sleep(10_000)
 

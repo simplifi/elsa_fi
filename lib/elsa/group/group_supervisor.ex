@@ -1,4 +1,4 @@
-defmodule Elsa.Group.Supervisor do
+defmodule Elsa.Group.GroupSupervisor do
   @moduledoc """
   Orchestrates the creation of dynamic supervisor and worker
   processes for per-topic consumer groups, manager processes
@@ -7,7 +7,9 @@ defmodule Elsa.Group.Supervisor do
   """
   use Supervisor, restart: :transient
 
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+
+  alias Elsa.ElsaRegistry
 
   @type init_opts :: [
           connection: Elsa.connection(),
@@ -19,7 +21,7 @@ defmodule Elsa.Group.Supervisor do
   @spec start_link(init_opts) :: GenServer.on_start()
   def start_link(init_arg \\ []) do
     connection = Keyword.fetch!(init_arg, :connection)
-    Supervisor.start_link(__MODULE__, init_arg, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
+    Supervisor.start_link(__MODULE__, init_arg, name: {:via, ElsaRegistry, {registry(connection), __MODULE__}})
   end
 
   @impl Supervisor
@@ -29,7 +31,7 @@ defmodule Elsa.Group.Supervisor do
 
     children =
       [
-        {DynamicSupervisor, [strategy: :one_for_one, name: {:via, Elsa.Registry, {registry, :worker_supervisor}}]},
+        {DynamicSupervisor, [strategy: :one_for_one, name: {:via, ElsaRegistry, {registry, :worker_supervisor}}]},
         {Elsa.Group.Manager, manager_args(init_arg)}
       ]
       |> List.flatten()

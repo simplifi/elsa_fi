@@ -7,7 +7,6 @@ defmodule Elsa.Group.LifecycleHooksTest do
   alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager
   alias Elsa.Group.Manager.WorkerManager
-  alias Elsa.Registry
 
   setup_with_mocks([
     {WorkerManager, [],
@@ -41,7 +40,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
 
   test "assignments_recieved calls lifecycle hook", %{state: state} do
     with_mocks([
-      {Registry, [], [whereis_name: fn _ -> :ack_pid end]},
+      {Elsa.ElsaRegistry, [], [whereis_name: fn _ -> :ack_pid end]},
       {Acknowledger, [], [update_generation_id: fn _, _ -> :ok end]}
     ]) do
       assignments = [

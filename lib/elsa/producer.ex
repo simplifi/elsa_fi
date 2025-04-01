@@ -23,6 +23,7 @@ defmodule Elsa.Producer do
   """
   @type message :: {iodata(), iodata()} | binary() | %{key: iodata(), value: iodata()}
 
+  alias Elsa.ElsaRegistry
   alias Elsa.Util
 
   @doc """
@@ -39,7 +40,7 @@ defmodule Elsa.Producer do
 
   def produce(endpoints, topic, messages, opts) when is_list(endpoints) do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
-    registry = Elsa.Supervisor.registry(connection)
+    registry = Elsa.ElsaSupervisor.registry(connection)
 
     _ =
       case Process.whereis(registry) do
@@ -63,14 +64,14 @@ defmodule Elsa.Producer do
   end
 
   def ready?(connection) do
-    registry = Elsa.Supervisor.registry(connection)
-    via = Elsa.Supervisor.via_name(registry, :producer_process_manager)
+    registry = Elsa.ElsaSupervisor.registry(connection)
+    via = Elsa.ElsaSupervisor.via_name(registry, :producer_process_manager)
     Elsa.DynamicProcessManager.ready?(via)
   end
 
   defp ad_hoc_produce(endpoints, connection, topic, messages, opts) do
     with {:ok, pid} <-
-           Elsa.Supervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
+           Elsa.ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
       ready?(connection)
       _ = produce(connection, topic, messages, opts)
       Process.unlink(pid)
@@ -164,7 +165,7 @@ defmodule Elsa.Producer do
   defp brod_produce(registry, topic, partition, messages) do
     producer = :"producer_#{topic}_#{partition}"
 
-    case Elsa.Registry.whereis_name({registry, producer}) do
+    case ElsaRegistry.whereis_name({registry, producer}) do
       :undefined -> {:error, "Elsa Producer for #{topic}:#{partition} not found"}
       pid -> call_brod_producer(pid, messages)
     end
