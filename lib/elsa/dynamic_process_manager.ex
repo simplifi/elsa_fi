@@ -1,4 +1,5 @@
 defmodule Elsa.DynamicProcessManager do
+  @moduledoc false
   use GenServer
   require Logger
 

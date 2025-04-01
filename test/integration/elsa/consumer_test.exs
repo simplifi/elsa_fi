@@ -13,7 +13,7 @@ defmodule Elsa.ConsumerTest do
     Elsa.create_topic(@brokers, topic, partitions: 2)
 
     start_supervised(
-      {Elsa.Supervisor,
+      {Elsa.ElsaSupervisor,
        connection: :name1,
        endpoints: @brokers,
        group_consumer: [
@@ -38,7 +38,7 @@ defmodule Elsa.ConsumerTest do
     Agent.start_link(fn -> [] end, name: :test_message_store)
 
     start_supervised(
-      {Elsa.Supervisor,
+      {Elsa.ElsaSupervisor,
        connection: :name1,
        endpoints: @brokers,
        group_consumer: [
@@ -68,7 +68,7 @@ defmodule Elsa.ConsumerTest do
     test_pid = self()
 
     start_supervised({
-      Elsa.Supervisor,
+      Elsa.ElsaSupervisor,
       connection: :name1,
       endpoints: @brokers,
       group_consumer: [
@@ -93,7 +93,7 @@ defmodule Elsa.ConsumerTest do
 
     # Create, then destroy another group subscriber to force a rebalance
     {:ok, dummy_pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :name2,
         endpoints: @brokers,
         group_consumer: [

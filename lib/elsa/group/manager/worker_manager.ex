@@ -4,7 +4,13 @@ defmodule Elsa.Group.Manager.WorkerManager do
   processes by the consumer group manager.
   """
   import Record, only: [defrecord: 2, extract: 2]
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+
+  alias Elsa.Consumer.Worker
+  alias Elsa.ElsaRegistry
+  alias Elsa.Group.Acknowledger
+  alias Elsa.Group.Manager
+  alias Elsa.Group.Manager.State
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 
@@ -19,7 +25,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
   Retrieve the generation id, used in tracking assignments of workers to topic/partition,
   from the worker state map.
   """
-  @spec get_generation_id(map(), Elsa.topic(), Elsa.partition()) :: Elsa.Group.Manager.generation_id()
+  @spec get_generation_id(map(), Elsa.topic(), Elsa.partition()) :: Manager.generation_id()
   def get_generation_id(workers, topic, partition) do
     Map.get(workers, {topic, partition})
     |> Map.get(:generation_id)
@@ -31,7 +37,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
   """
   @spec stop_all_workers(Elsa.connection(), map()) :: map()
   def stop_all_workers(connection, workers) do
-    supervisor = {:via, Elsa.Registry, {registry(connection), :worker_supervisor}}
+    supervisor = {:via, ElsaRegistry, {registry(connection), :worker_supervisor}}
 
     workers
     |> Map.values()
@@ -49,12 +55,12 @@ defmodule Elsa.Group.Manager.WorkerManager do
   has been recorded.
   """
   @spec restart_worker(map(), reference(), struct()) :: map()
-  def restart_worker(workers, ref, %Elsa.Group.Manager.State{} = state) do
+  def restart_worker(workers, ref, %State{} = state) do
     worker = get_by_ref(workers, ref)
 
     latest_offset =
-      Elsa.Group.Acknowledger.get_latest_offset(
-        {:via, Elsa.Registry, {registry(state.connection), Elsa.Group.Acknowledger}},
+      Acknowledger.get_latest_offset(
+        {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
         worker.topic,
         worker.partition
       ) || worker.latest_offset
@@ -71,7 +77,7 @@ defmodule Elsa.Group.Manager.WorkerManager do
   manager state map tracking active worker processes.
   """
   @spec start_worker(map(), integer(), tuple(), struct()) :: map()
-  def start_worker(workers, generation_id, assignment, %Elsa.Group.Manager.State{} = state) do
+  def start_worker(workers, generation_id, assignment, %State{} = state) do
     assignment = Enum.into(brod_received_assignment(assignment), %{})
 
     init_args = [
@@ -85,8 +91,8 @@ defmodule Elsa.Group.Manager.WorkerManager do
       config: state.config
     ]
 
-    supervisor = {:via, Elsa.Registry, {registry(state.connection), :worker_supervisor}}
-    {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Elsa.Consumer.Worker, init_args})
+    supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_supervisor}}
+    {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
     ref = Process.monitor(worker_pid)
 
     new_worker = %WorkerState{

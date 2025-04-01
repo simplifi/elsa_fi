@@ -14,7 +14,7 @@ defmodule Elsa.Consumer.WorkerTest do
     )
 
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :test_simple_consumer,
         endpoints: @endpoints,
         consumer: [
@@ -42,7 +42,7 @@ defmodule Elsa.Consumer.WorkerTest do
     )
 
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [
@@ -77,9 +77,11 @@ defmodule Elsa.Consumer.WorkerTest do
     Elsa.produce(@endpoints, "latest-only-topic", {"0", "strike 1"}, partition: 0)
     Elsa.produce(@endpoints, "latest-only-topic", {"1", "strike 2"}, partition: 0)
 
+    connection = :test_simple_consumer_partition
+
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
-        connection: :test_simple_consumer_partition,
+      Elsa.ElsaSupervisor.start_link(
+        connection: connection,
         endpoints: @endpoints,
         consumer: [
           topic: "latest-only-topic",
@@ -91,8 +93,7 @@ defmodule Elsa.Consumer.WorkerTest do
         ]
       )
 
-    # TODO we should probably come up with a better solution for this
-    Process.sleep(1_000)
+    Patiently.wait_for(fn -> Elsa.Producer.ready?(connection) end)
 
     Elsa.produce(@endpoints, "latest-only-topic", {"2", "homerun"}, partition: 0)
 
@@ -117,7 +118,7 @@ defmodule Elsa.Consumer.WorkerTest do
     Elsa.produce(@endpoints, "specific-offset", {"2", "c"}, partition: 0)
 
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [
@@ -148,7 +149,7 @@ defmodule Elsa.Consumer.WorkerTest do
     Elsa.produce(@endpoints, "all-partitions", {"1", "b"}, partition: 1)
 
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [

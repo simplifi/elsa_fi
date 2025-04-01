@@ -3,7 +3,9 @@ defmodule Elsa.Consumer do
   Public api to consumer acks asynchronously for simple consumers
   """
 
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+
+  alias Elsa.ElsaRegistry
 
   @type offset :: non_neg_integer()
 
@@ -20,6 +22,6 @@ defmodule Elsa.Consumer do
 
   defp get_consumer(connection, topic, partition) do
     consumer_name = :"consumer_#{topic}_#{partition}"
-    Elsa.Registry.whereis_name({registry(connection), consumer_name})
+    ElsaRegistry.whereis_name({registry(connection), consumer_name})
   end
 end

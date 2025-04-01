@@ -11,7 +11,7 @@ defmodule Elsa.Group.SubscriberDeadTest do
     Elsa.create_topic(@brokers, "dead-subscriber-topic", partitions: 2)
 
     {:ok, pid} =
-      Elsa.Supervisor.start_link(
+      Elsa.ElsaSupervisor.start_link(
         connection: :name1,
         endpoints: @brokers,
         group_consumer: [
@@ -71,7 +71,7 @@ defmodule Elsa.Group.SubscriberDeadTest do
   end
 
   defp kill_worker(partition) do
-    worker_pid = Elsa.Registry.whereis_name({:elsa_registry_name1, :"worker_#{@topic}_#{partition}"})
+    worker_pid = Elsa.ElsaRegistry.whereis_name({:elsa_registry_name1, :"worker_#{@topic}_#{partition}"})
     Process.exit(worker_pid, :kill)
 
     assert false == Process.alive?(worker_pid)

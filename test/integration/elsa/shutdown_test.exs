@@ -10,18 +10,18 @@ defmodule Elsa.ShutdownTest do
     test_pid = self()
     options = elsa_options("shutdown-topic", test_pid)
 
-    {:ok, first_run_pid} = start_supervised({Elsa.Supervisor, options})
+    {:ok, first_run_pid} = start_supervised({Elsa.ElsaSupervisor, options})
     assert_receive {:message, %Elsa.Message{value: "a"}}, 5_000
     assert_receive {:message, %Elsa.Message{value: "b"}}, 5_000
     assert_receive {:message, %Elsa.Message{value: "c"}}, 5_000
 
-    stop_supervised(Elsa.Supervisor)
+    stop_supervised(Elsa.ElsaSupervisor)
 
     assert_async sleep: 1_000, max_tries: 60 do
       assert false == Process.alive?(first_run_pid)
     end
 
-    {:ok, _second_run_pid} = start_supervised({Elsa.Supervisor, options})
+    {:ok, _second_run_pid} = start_supervised({Elsa.ElsaSupervisor, options})
     # give it time to pull in duplicates if they are there
     Process.sleep(10_000)
 
@@ -63,18 +63,20 @@ end
 defmodule FakeMessageHandler do
   use Elsa.Consumer.MessageHandler
 
+  require Logger
+
   def init(args) do
     {:ok, %{test_pid: Keyword.fetch!(args, :test_pid)}}
   end
 
   def handle_messages(messages, %{test_pid: test_pid} = state) do
-    IO.inspect(messages, label: "processing")
+    Logger.info("processing #{inspect(messages)}")
 
     Enum.each(messages, &send(test_pid, {:message, &1}))
     # pretend we're doing some heavy lifting here
     Process.sleep(5_000)
 
-    IO.inspect(messages, label: "acking")
+    Logger.info("acking #{inspect(messages)}")
     {:ack, state}
   end
 end

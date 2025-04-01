@@ -2,6 +2,9 @@ defmodule Elsa.WrapperTest do
   use ExUnit.Case
   import TestHelper
 
+  alias Elsa.ElsaRegistry
+  alias Elsa.Wrapper
+
   @moduletag capture_log: true
   @registry :test_registry
 
@@ -27,7 +30,7 @@ defmodule Elsa.WrapperTest do
   defmodule NoStartServer do
     use GenServer
 
-    def start_link() do
+    def start_link do
       GenServer.start_link(__MODULE__, [])
     end
 
@@ -39,7 +42,7 @@ defmodule Elsa.WrapperTest do
 
   setup do
     Process.flag(:trap_exit, true)
-    {:ok, pid} = Elsa.Registry.start_link(name: @registry)
+    {:ok, pid} = ElsaRegistry.start_link(name: @registry)
 
     on_exit(fn -> assert_down(pid) end)
 
@@ -47,15 +50,14 @@ defmodule Elsa.WrapperTest do
   end
 
   test "starts configured process" do
-    {:ok, pid} = Elsa.Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
+    {:ok, pid} = Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
 
     assert :agent_state = Agent.get(:agent_0, fn s -> s end)
     assert_down(pid)
   end
 
   test "adds an artificial delay when wrapped process dies" do
-    {:ok, pid} =
-      Elsa.Wrapper.start_link(delay: 2_000, mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
+    {:ok, pid} = Wrapper.start_link(delay: 2_000, mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
 
     Process.whereis(:agent_0) |> Process.exit(:kill)
 
@@ -64,7 +66,7 @@ defmodule Elsa.WrapperTest do
   end
 
   test "shuts process down when ask to stop" do
-    {:ok, pid} = Elsa.Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
+    {:ok, pid} = Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end, [name: :agent_0]]})
     agent_pid = Process.whereis(:agent_0)
 
     Process.exit(pid, :shutdown)
@@ -74,7 +76,7 @@ defmodule Elsa.WrapperTest do
   end
 
   test "kills process if it refuses to shutdown" do
-    {:ok, pid} = Elsa.Wrapper.start_link(mfa: {NoShutdownServer, :start_link, [[name: :no_shutdown_server]]})
+    {:ok, pid} = Wrapper.start_link(mfa: {NoShutdownServer, :start_link, [[name: :no_shutdown_server]]})
     server_pid = Process.whereis(:no_shutdown_server)
 
     Process.exit(pid, :shutdown)
@@ -84,15 +86,14 @@ defmodule Elsa.WrapperTest do
   end
 
   test "registers process with elsa registry" do
-    {:ok, pid} =
-      Elsa.Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end]}, register: {@registry, :agent})
+    {:ok, pid} = Wrapper.start_link(mfa: {Agent, :start_link, [fn -> :agent_state end]}, register: {@registry, :agent})
 
-    assert :agent_state = Agent.get({:via, Elsa.Registry, {@registry, :agent}}, fn s -> s end)
+    assert :agent_state = Agent.get({:via, ElsaRegistry, {@registry, :agent}}, fn s -> s end)
 
     assert_down(pid)
   end
 
   test "restarts if wrapped process fails to init" do
-    assert {:error, :failure} == Elsa.Wrapper.start_link(mfa: {NoStartServer, :start_link, []})
+    assert {:error, :failure} == Wrapper.start_link(mfa: {NoStartServer, :start_link, []})
   end
 end
