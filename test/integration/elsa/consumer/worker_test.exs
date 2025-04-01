@@ -2,7 +2,7 @@ defmodule Elsa.Consumer.WorkerTest do
   use ExUnit.Case
   use Divo
 
-  @endpoints Application.get_env(:elsa, :brokers)
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
 
   test "simply consumes messages from configured topic/partition" do
     Patiently.wait_for!(

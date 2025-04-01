@@ -36,7 +36,8 @@ defmodule Elsa.MixProject do
       {:mock, "~> 0.3", only: [:dev, :test]},
       {:checkov, "~> 1.0", only: [:test, :integration]},
       {:ex_doc, "~> 0.29", only: [:dev]},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:credo, "~> 1.7", only: :dev}
     ]
   end
 
@@ -95,7 +96,7 @@ defmodule Elsa.MixProject do
 
   defp docs do
     [
-      source_ref: "v#{@version}",
+      source_ref: "v#{version()}",
       source_url: @github,
       extras: ["README.md"],
       source_url_pattern: "#{@github}/blob/master/%{path}#L%{line}"

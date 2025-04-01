@@ -41,13 +41,14 @@ defmodule Elsa.Producer do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
     registry = Elsa.Supervisor.registry(connection)
 
-    _ = case Process.whereis(registry) do
-      nil ->
-        ad_hoc_produce(endpoints, connection, topic, messages, opts)
+    _ =
+      case Process.whereis(registry) do
+        nil ->
+          ad_hoc_produce(endpoints, connection, topic, messages, opts)
 
-      _pid ->
-        produce(connection, topic, messages, opts)
-    end
+        _pid ->
+          produce(connection, topic, messages, opts)
+      end
 
     :ok
   end

@@ -2,7 +2,7 @@ defmodule Elsa.FetchTest do
   use ExUnit.Case
   use Divo
 
-  @endpoints [localhost: 9092]
+  @endpoints Application.compile_env(:elsa_fi, :brokers)
 
   setup_all do
     Elsa.create_topic(@endpoints, "fetch-tests", partitions: 3)
