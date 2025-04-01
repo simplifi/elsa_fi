@@ -63,18 +63,20 @@ end
 defmodule FakeMessageHandler do
   use Elsa.Consumer.MessageHandler
 
+  require Logger
+
   def init(args) do
     {:ok, %{test_pid: Keyword.fetch!(args, :test_pid)}}
   end
 
   def handle_messages(messages, %{test_pid: test_pid} = state) do
-    IO.inspect(messages, label: "processing")
+    Logger.info("processing #{inspect(messages)}")
 
     Enum.each(messages, &send(test_pid, {:message, &1}))
     # pretend we're doing some heavy lifting here
     Process.sleep(5_000)
 
-    IO.inspect(messages, label: "acking")
+    Logger.info("acking #{inspect(messages)}")
     {:ack, state}
   end
 end

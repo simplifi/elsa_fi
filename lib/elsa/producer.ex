@@ -111,9 +111,7 @@ defmodule Elsa.Producer do
           {:cont, {:ok, messages_sent + length(chunk)}}
 
         {:error, reason} ->
-          failed_messages =
-            Enum.flat_map(message_chunks, fn {_partition, chunk} -> chunk end)
-            |> Enum.drop(messages_sent)
+          failed_messages = failed_messages(message_chunks, messages_sent)
 
           {:halt, {:error, reason, messages_sent, failed_messages}}
       end
@@ -132,6 +130,11 @@ defmodule Elsa.Producer do
       "#{messages_sent} messages succeeded before elsa producer failed midway through due to #{inspect(reason)}"
 
     {:error, reason_string, failed_messages}
+  end
+
+  defp failed_messages(message_chunks, messages_sent) do
+    Enum.flat_map(message_chunks, fn {_partition, chunk} -> chunk end)
+    |> Enum.drop(messages_sent)
   end
 
   defp get_partitioner(registry, topic, opts) do

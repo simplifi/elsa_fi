@@ -91,8 +91,7 @@ defmodule Elsa.Consumer.WorkerTest do
         ]
       )
 
-    # TODO we should probably come up with a better solution for this
-    Process.sleep(1_000)
+    Patiently.wait_for(fn -> Elsa.Producer.ready?(pid) end)
 
     Elsa.produce(@endpoints, "latest-only-topic", {"2", "homerun"}, partition: 0)
 

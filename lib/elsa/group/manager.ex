@@ -9,6 +9,8 @@ defmodule Elsa.Group.Manager do
   require Logger
   import Record, only: [defrecord: 2, extract: 2]
   import Elsa.Supervisor, only: [registry: 1]
+
+  alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager.WorkerManager
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
@@ -177,8 +179,8 @@ defmodule Elsa.Group.Manager do
         {:stop, reason, {:error, reason}, state}
 
       :ok ->
-        Elsa.Group.Acknowledger.update_generation_id(
-          {:via, Elsa.Registry, {registry(state.connection), Elsa.Group.Acknowledger}},
+        Acknowledger.update_generation_id(
+          {:via, Elsa.Registry, {registry(state.connection), Acknowledger}},
           generation_id
         )
 
@@ -251,7 +253,7 @@ defmodule Elsa.Group.Manager do
   end
 
   defp start_acknowledger(state) do
-    Elsa.Group.Acknowledger.start_link(connection: state.connection)
+    Acknowledger.start_link(connection: state.connection)
   end
 
   defp shutdown_and_wait(pid) do

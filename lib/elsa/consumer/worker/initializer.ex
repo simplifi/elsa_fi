@@ -1,4 +1,5 @@
 defmodule Elsa.Consumer.Worker.Initializer do
+  @moduledoc false
   @type init_opts :: [
           connection: atom(),
           registry: atom(),

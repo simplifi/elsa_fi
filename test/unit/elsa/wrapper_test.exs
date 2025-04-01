@@ -27,7 +27,7 @@ defmodule Elsa.WrapperTest do
   defmodule NoStartServer do
     use GenServer
 
-    def start_link() do
+    def start_link do
       GenServer.start_link(__MODULE__, [])
     end
 

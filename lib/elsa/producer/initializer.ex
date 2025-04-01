@@ -1,4 +1,5 @@
 defmodule Elsa.Producer.Initializer do
+  @moduledoc false
   @spec init(registry :: atom(), producer_configs :: list(keyword)) :: [Supervisor.child_spec()]
   def init(registry, producer_configs) do
     brod_client = Elsa.Registry.whereis_name({registry, :brod_client})

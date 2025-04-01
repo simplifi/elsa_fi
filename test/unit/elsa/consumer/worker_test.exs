@@ -3,12 +3,13 @@ defmodule Elsa.Consumer.WorkerTest do
 
   import Checkov
   import Mock
-  import Elsa.Consumer.Worker, only: [kafka_message_set: 1]
+  import Elsa.Consumer.Worker
+  import Elsa.Group.Acknowledger
   import Elsa.Message, only: [kafka_message: 1]
 
   describe "handle_info/2" do
     setup_with_mocks([
-      {Elsa.Group.Acknowledger, [], [ack: fn _, _, _, _, _ -> :ok end]},
+      {Acknowledger, [], [ack: fn _, _, _, _, _ -> :ok end]},
       {:brod_consumer, [], [ack: fn _, _ -> :ok end]}
     ]) do
       init_args = [
@@ -41,9 +42,9 @@ defmodule Elsa.Consumer.WorkerTest do
         {ack, offset}
       end)
 
-      Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
+      Worker.handle_info({:some_pid, messages}, state)
 
-      assert_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, 5, 13))
+      assert_called(Acknowledger.ack(:test_name, "test-topic", 0, 5, 13))
 
       where(ack: [:ack, :acknowledge])
     end
@@ -51,9 +52,9 @@ defmodule Elsa.Consumer.WorkerTest do
     data_test "handler can say #{response}", %{messages: messages, state: state} do
       set_handler(fn _messags -> response end)
 
-      Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
+      Worker.handle_info({:some_pid, messages}, state)
 
-      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
+      assert_not_called(Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
       where(response: [:no_ack, :noop])
     end
 
@@ -63,9 +64,9 @@ defmodule Elsa.Consumer.WorkerTest do
     } do
       set_handler(fn _messages -> :continue end)
 
-      Elsa.Consumer.Worker.handle_info({:some_pid, messages}, state)
+      Worker.handle_info({:some_pid, messages}, state)
 
-      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
+      assert_not_called(Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
       assert_called(:brod_consumer.ack(:_, 14))
     end
 
@@ -78,8 +79,8 @@ defmodule Elsa.Consumer.WorkerTest do
         {ack, offset}
       end)
 
-      Elsa.Consumer.Worker.handle_info({:some_pid, messages}, Map.put(state, :generation_id, nil))
-      assert_not_called(Elsa.Group.Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
+      Worker.handle_info({:some_pid, messages}, Map.put(state, :generation_id, nil))
+      assert_not_called(Acknowledger.ack(:test_name, "test-topic", 0, :_, :_))
       assert_called(:brod_consumer.ack(:_, 13))
 
       where ack: [:ack, :acknowledge]
@@ -93,7 +94,7 @@ defmodule Elsa.Consumer.WorkerTest do
       |> Map.delete(:begin_offset)
       |> Map.put(:offset, 13)
 
-    struct(Elsa.Consumer.Worker.State, state)
+    struct(Worker.State, state)
   end
 
   defp set_handler(handler) do

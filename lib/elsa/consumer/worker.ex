@@ -149,7 +149,7 @@ defmodule Elsa.Consumer.Worker do
   end
 
   defp ack_messages(topic, partition, offset, state) do
-    Elsa.Group.Acknowledger.ack(state.connection, topic, partition, state.generation_id, offset)
+    Acknowledger.ack(state.connection, topic, partition, state.generation_id, offset)
   end
 
   defp start_consumer(connection, topic, partition, config) do

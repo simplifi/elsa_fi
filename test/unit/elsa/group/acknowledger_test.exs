@@ -1,8 +1,8 @@
 defmodule Elsa.Group.AcknowledgerTest do
   use ExUnit.Case
 
-  alias Elsa.{Registry, Supervisor}
   alias Elsa.Group.Acknowledger
+  alias Elsa.{Registry, Supervisor}
 
   setup do
     {:ok, registry} = Registry.start_link(name: Supervisor.registry(:connection))

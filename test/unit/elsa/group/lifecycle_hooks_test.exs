@@ -1,11 +1,13 @@
 defmodule Elsa.Group.LifecycleHooksTest do
   use ExUnit.Case
 
-  alias Elsa.Group.Manager.WorkerManager
-  alias Elsa.Registry
-  alias Elsa.Group.Acknowledger
   import Elsa.Group.Manager, only: [brod_received_assignment: 1]
   import Mock
+
+  alias Elsa.Group.Acknowledger
+  alias Elsa.Group.Manager
+  alias Elsa.Group.Manager.WorkerManager
+  alias Elsa.Registry
 
   setup_with_mocks([
     {WorkerManager, [],
@@ -48,7 +50,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
       ]
 
       {:reply, :ok, ^state} =
-        Elsa.Group.Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
+        Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
 
       assert_received {:assignment_received, "group1", "topic1", 0, :generation_id}
       assert_received {:assignment_received, "group1", "topic1", 1, :generation_id}
@@ -64,7 +66,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
     ]
 
     {:stop, :some_reason, {:error, :some_reason}, ^error_state} =
-      Elsa.Group.Manager.handle_call(
+      Manager.handle_call(
         {:process_assignments, :member_id, :generation_id, assignments},
         self(),
         error_state
@@ -74,7 +76,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
   end
 
   test "assignments_revoked calls lifecycle hook", %{state: state} do
-    {:reply, :ok, new_state} = Elsa.Group.Manager.handle_call(:revoke_assignments, self(), state)
+    {:reply, :ok, new_state} = Manager.handle_call(:revoke_assignments, self(), state)
 
     assert new_state == %{state | generation_id: nil}
     assert_received :assignments_revoked
