@@ -36,7 +36,7 @@ defmodule Elsa do
   around a name.
   """
   @spec default_client() :: atom()
-  def default_client(), do: :elsa_default_client
+  def default_client, do: :elsa_default_client
 
   defmodule Message do
     @moduledoc """

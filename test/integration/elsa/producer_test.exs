@@ -22,7 +22,7 @@ defmodule Elsa.ProducerTest do
       Elsa.create_topic(@brokers, topic2)
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(
+        Elsa.ElsaSupervisor.start_link(
           endpoints: @brokers,
           connection: connection,
           producer: [[topic: topic], [topic: topic2]]
@@ -34,7 +34,7 @@ defmodule Elsa.ProducerTest do
 
       :timer.sleep(@brod_init_sleep_ms)
 
-      [connection: connection, topics: [topic, topic2], registry: Elsa.Supervisor.registry(connection)]
+      [connection: connection, topics: [topic, topic2], registry: Elsa.ElsaSupervisor.registry(connection)]
     end
 
     test "restarts producers when the client is dropped", %{
@@ -44,7 +44,7 @@ defmodule Elsa.ProducerTest do
     } do
       message = "everything's fine here"
       message2 = "also over here"
-      client_pid = Elsa.Registry.whereis_name({registry, :brod_client})
+      client_pid = Elsa.ElsaRegistry.whereis_name({registry, :brod_client})
       Process.exit(client_pid, :kill)
 
       Patiently.wait_for!(
@@ -82,7 +82,7 @@ defmodule Elsa.ProducerTest do
       connection = String.to_atom(topic)
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -131,7 +131,7 @@ defmodule Elsa.ProducerTest do
       Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -170,7 +170,7 @@ defmodule Elsa.ProducerTest do
       connection = :elsa_test3
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "random-topic"])
+        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "random-topic"])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -191,7 +191,7 @@ defmodule Elsa.ProducerTest do
       connection = :elsa_test4
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "hashed-topic"])
+        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "hashed-topic"])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -212,7 +212,7 @@ defmodule Elsa.ProducerTest do
       Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
-        Elsa.Supervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -238,7 +238,7 @@ defmodule Elsa.ProducerTest do
       Elsa.create_topic(@brokers, topic2)
 
       start_supervised(
-        {Elsa.Supervisor,
+        {Elsa.ElsaSupervisor,
          endpoints: @brokers,
          connection: connection,
          group_consumer: [
@@ -249,7 +249,7 @@ defmodule Elsa.ProducerTest do
          ]}
       )
 
-      Elsa.Supervisor.start_producer(connection, topic: topic1)
+      Elsa.ElsaSupervisor.start_producer(connection, topic: topic1)
 
       # Hack for brod not working right if you don't give it a moment to initialize
       :timer.sleep(@brod_init_sleep_ms)
@@ -259,7 +259,7 @@ defmodule Elsa.ProducerTest do
       messages = retrieve_results(@brokers, topic1, 0, 0)
       assert {"key1", "value1"} in messages
 
-      Elsa.Supervisor.start_producer(connection, topic: topic2)
+      Elsa.ElsaSupervisor.start_producer(connection, topic: topic2)
 
       patient_produce(connection, topic2, {"key2", "value2"}, [])
 

@@ -119,7 +119,7 @@ defmodule TestInitializer do
 end
 
 defmodule PollingInitializer do
-  def initialize() do
+  def initialize do
     specs = [
       %{id: :agent1, start: {Agent, :start_link, [fn -> 1 end, [name: :agent1]]}}
     ]

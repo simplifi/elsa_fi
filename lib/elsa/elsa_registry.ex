@@ -1,4 +1,4 @@
-defmodule Elsa.Registry do
+defmodule Elsa.ElsaRegistry do
   @moduledoc """
   Implements a custom version of the Registry
   for Elsa, allowing the registration of shared

@@ -52,19 +52,19 @@ defmodule Elsa.Consumer.MessageHandler do
         :ack
       end
 
-      def topic() do
+      def topic do
         Process.get(:elsa_topic)
       end
 
-      def partition() do
+      def partition do
         Process.get(:elsa_partition)
       end
 
-      def generation_id() do
+      def generation_id do
         Process.get(:elsa_generation_id)
       end
 
-      def connection() do
+      def connection do
         Process.get(:elsa_connection)
       end
 

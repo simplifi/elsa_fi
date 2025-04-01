@@ -8,7 +8,10 @@ defmodule Elsa.Group.Manager do
   use GenServer, shutdown: 5 * 60_000
   require Logger
   import Record, only: [defrecord: 2, extract: 2]
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+
+  alias Elsa.ElsaRegistry
+  alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager.WorkerSupervisor
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
@@ -135,7 +138,7 @@ defmodule Elsa.Group.Manager do
   @spec start_link(init_opts) :: GenServer.on_start()
   def start_link(opts) do
     connection = Keyword.fetch!(opts, :connection)
-    GenServer.start_link(__MODULE__, opts, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
+    GenServer.start_link(__MODULE__, opts, name: {:via, ElsaRegistry, {registry(connection), __MODULE__}})
   end
 
   def init(opts) do
@@ -177,8 +180,8 @@ defmodule Elsa.Group.Manager do
         {:stop, reason, {:error, reason}, state}
 
       :ok ->
-        Elsa.Group.Acknowledger.update_generation_id(
-          {:via, Elsa.Registry, {registry(state.connection), Elsa.Group.Acknowledger}},
+        Acknowledger.update_generation_id(
+          {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
           generation_id
         )
 
@@ -245,13 +248,13 @@ defmodule Elsa.Group.Manager do
              __MODULE__,
              self()
            ) do
-      Elsa.Registry.register_name({registry(state.connection), :brod_group_coordinator}, group_coordinator_pid)
+      ElsaRegistry.register_name({registry(state.connection), :brod_group_coordinator}, group_coordinator_pid)
       {:ok, group_coordinator_pid}
     end
   end
 
   defp start_acknowledger(state) do
-    Elsa.Group.Acknowledger.start_link(connection: state.connection)
+    Acknowledger.start_link(connection: state.connection)
   end
 
   defp shutdown_and_wait(pid) do

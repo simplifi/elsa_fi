@@ -1,11 +1,12 @@
 defmodule Elsa.Group.LifecycleHooksTest do
   use ExUnit.Case
 
-  alias Elsa.Group.Manager.WorkerSupervisor
-  alias Elsa.Registry
-  alias Elsa.Group.Acknowledger
   import Elsa.Group.Manager, only: [brod_received_assignment: 1]
   import Mock
+
+  alias Elsa.Group.Acknowledger
+  alias Elsa.Group.Manager
+  alias Elsa.Group.Manager.WorkerSupervisor
 
   setup_with_mocks([
     {WorkerSupervisor, [],
@@ -39,7 +40,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
 
   test "assignments_recieved calls lifecycle hook", %{state: state} do
     with_mocks([
-      {Registry, [], [whereis_name: fn _ -> :ack_pid end]},
+      {Elsa.ElsaRegistry, [], [whereis_name: fn _ -> :ack_pid end]},
       {Acknowledger, [], [update_generation_id: fn _, _ -> :ok end]}
     ]) do
       assignments = [
@@ -48,7 +49,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
       ]
 
       {:reply, :ok, ^state} =
-        Elsa.Group.Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
+        Manager.handle_call({:process_assignments, :member_id, :generation_id, assignments}, self(), state)
 
       assert_received {:assignment_received, "group1", "topic1", 0, :generation_id}
       assert_received {:assignment_received, "group1", "topic1", 1, :generation_id}
@@ -64,7 +65,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
     ]
 
     {:stop, :some_reason, {:error, :some_reason}, ^error_state} =
-      Elsa.Group.Manager.handle_call(
+      Manager.handle_call(
         {:process_assignments, :member_id, :generation_id, assignments},
         self(),
         error_state
@@ -74,7 +75,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
   end
 
   test "assignments_revoked calls lifecycle hook", %{state: state} do
-    {:reply, :ok, new_state} = Elsa.Group.Manager.handle_call(:revoke_assignments, self(), state)
+    {:reply, :ok, new_state} = Manager.handle_call(:revoke_assignments, self(), state)
 
     assert new_state == %{state | generation_id: nil}
     assert_received :assignments_revoked

@@ -6,7 +6,13 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   use Supervisor, restart: :transient
 
   import Record, only: [defrecord: 2, extract: 2]
-  import Elsa.Supervisor, only: [registry: 1]
+  import Elsa.ElsaSupervisor, only: [registry: 1]
+
+  alias Elsa.Consumer.Worker
+  alias Elsa.ElsaRegistry
+  alias Elsa.Group.Acknowledger
+  alias Elsa.Group.Manager
+  alias Elsa.Group.Manager.State
 
   alias Elsa.Util
 
@@ -30,7 +36,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     connection = Keyword.fetch!(opts, :connection)
-    Supervisor.start_link(__MODULE__, opts, name: {:via, Elsa.Registry, {registry(connection), __MODULE__}})
+    Supervisor.start_link(__MODULE__, opts, name: {:via, ElsaRegistry, {registry(connection), __MODULE__}})
   end
 
   @impl true
@@ -42,7 +48,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
     children = [
       {DynamicSupervisor,
-       [id: :worker_dynamic_supervisor, name: {:via, Elsa.Registry, {registry(connection), :worker_dynamic_supervisor}}]}
+       [id: :worker_dynamic_supervisor, name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}}]}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -52,7 +58,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   Retrieve the generation id, used in tracking assignments of workers to topic/partition,
   from the worker state map.
   """
-  @spec get_generation_id(map(), Elsa.topic(), Elsa.partition()) :: Elsa.Group.Manager.generation_id()
+  @spec get_generation_id(map(), Elsa.topic(), Elsa.partition()) :: Manager.generation_id()
   def get_generation_id(workers, topic, partition) do
     Map.get(workers, {topic, partition})
     |> Map.get(:generation_id)
@@ -74,9 +80,9 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     # Stop the dynamic supervisor in , which will in turn stop all of the children
     Util.with_registry(connection, fn registry ->
       # This is the Supervisor created in start_link, for this specific connection.
-      module_supervisor = Elsa.Registry.whereis_name({registry, __MODULE__})
+      module_supervisor = ElsaRegistry.whereis_name({registry, __MODULE__})
       # This is the DynamicSupervisor created in init
-      dynamic_worker_supervisor = Elsa.Registry.whereis_name({registry, :worker_dynamic_supervisor})
+      dynamic_worker_supervisor = ElsaRegistry.whereis_name({registry, :worker_dynamic_supervisor})
 
       # Synchronously stops the DynamicSupervisor and its children
       DynamicSupervisor.stop(dynamic_worker_supervisor)
@@ -94,12 +100,12 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   has been recorded.
   """
   @spec restart_worker(map(), reference(), struct()) :: map()
-  def restart_worker(workers, ref, %Elsa.Group.Manager.State{} = state) do
+  def restart_worker(workers, ref, %State{} = state) do
     worker = get_by_ref(workers, ref)
 
     latest_offset =
-      Elsa.Group.Acknowledger.get_latest_offset(
-        {:via, Elsa.Registry, {registry(state.connection), Elsa.Group.Acknowledger}},
+      Acknowledger.get_latest_offset(
+        {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
         worker.topic,
         worker.partition
       ) || worker.latest_offset
@@ -116,7 +122,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   manager state map tracking active worker processes.
   """
   @spec start_worker(map(), integer(), tuple(), struct()) :: map()
-  def start_worker(workers, generation_id, assignment, %Elsa.Group.Manager.State{} = state) do
+  def start_worker(workers, generation_id, assignment, %State{} = state) do
     assignment = Enum.into(brod_received_assignment(assignment), %{})
 
     init_args = [
@@ -132,7 +138,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
     Logger.info("Starting group consumer worker: #{inspect(init_args)}")
 
-    supervisor = {:via, Elsa.Registry, {registry(state.connection), :worker_dynamic_supervisor}}
+    supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_dynamic_supervisor}}
     {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Elsa.Consumer.Worker, init_args})
     ref = Process.monitor(worker_pid)
 

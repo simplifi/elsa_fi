@@ -1,5 +1,7 @@
 defmodule AssertAsync do
+  @moduledoc false
   defmodule Impl do
+    @moduledoc false
     require Logger
 
     @defaults %{
@@ -18,19 +20,17 @@ defmodule AssertAsync do
     end
 
     defp do_assert(function, %{max_tries: max_tries} = opts) do
-      try do
-        function.()
-      rescue
-        e in ExUnit.AssertionError ->
-          if opts.debug do
-            Logger.debug(fn ->
-              "AssertAsync(remaining #{max_tries - 1}): #{ExUnit.AssertionError.message(e)}"
-            end)
-          end
+      function.()
+    rescue
+      e in ExUnit.AssertionError ->
+        if opts.debug do
+          Logger.debug(fn ->
+            "AssertAsync(remaining #{max_tries - 1}): #{ExUnit.AssertionError.message(e)}"
+          end)
+        end
 
-          Process.sleep(opts.sleep)
-          do_assert(function, %{opts | max_tries: max_tries - 1})
-      end
+        Process.sleep(opts.sleep)
+        do_assert(function, %{opts | max_tries: max_tries - 1})
     end
   end
 

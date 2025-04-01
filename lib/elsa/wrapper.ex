@@ -37,7 +37,7 @@ defmodule Elsa.Wrapper do
     case start(state) do
       {:ok, pid} ->
         unless state.register == :no_register do
-          Elsa.Registry.register_name(state.register, pid)
+          Elsa.ElsaRegistry.register_name(state.register, pid)
         end
 
         {:ok, Map.put(state, :pid, pid)}

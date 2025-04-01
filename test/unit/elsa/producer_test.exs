@@ -1,11 +1,12 @@
 defmodule Elsa.ProducerTest do
   use ExUnit.Case
   import TestHelper
+  alias Elsa.ElsaRegistry
 
   describe "produce_sync" do
     setup do
-      {:ok, registry} = Elsa.Registry.start_link(name: :elsa_registry_test_client)
-      Elsa.Registry.register_name({:elsa_registry_test_client, :brod_client}, self())
+      {:ok, registry} = ElsaRegistry.start_link(name: :elsa_registry_test_client)
+      ElsaRegistry.register_name({:elsa_registry_test_client, :brod_client}, self())
 
       on_exit(fn -> assert_down(registry) end)
 
@@ -17,7 +18,7 @@ defmodule Elsa.ProducerTest do
       :meck.expect(:brod_producer, :produce, 3, :meck.seq([:ok, {:error, :some_reason}, :ok]))
       :meck.expect(:brod_producer, :sync_produce_request, 2, {:ok, 0})
 
-      Elsa.Registry.register_name({:elsa_registry_test_client, :"producer_topic-a_0"}, self())
+      ElsaRegistry.register_name({:elsa_registry_test_client, :"producer_topic-a_0"}, self())
 
       messages = Enum.map(1..2_000, fn i -> %{key: "", value: random_string(i)} end)
       {:error, reason, failed} = Elsa.produce(:test_client, "topic-a", messages, connection: :test_client, partition: 0)

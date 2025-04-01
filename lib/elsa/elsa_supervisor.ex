@@ -1,4 +1,4 @@
-defmodule Elsa.Supervisor do
+defmodule Elsa.ElsaSupervisor do
   @moduledoc """
   Top-level supervisor that orchestrates all other components
   of the Elsa library. Allows for a single point of integration
@@ -11,6 +11,8 @@ defmodule Elsa.Supervisor do
   """
   use Supervisor
 
+  alias Elsa.ElsaRegistry
+
   @doc """
   Defines a connection for locating the Elsa Registry process.
   """
@@ -20,7 +22,7 @@ defmodule Elsa.Supervisor do
   end
 
   def via_name(registry, name) do
-    {:via, Elsa.Registry, {registry, name}}
+    {:via, ElsaRegistry, {registry, name}}
   end
 
   def dynamic_supervisor(registry) do
@@ -95,7 +97,7 @@ defmodule Elsa.Supervisor do
   ## Example
 
   ```
-    Elsa.Supervisor.start_link([
+    Elsa.ElsaSupervisor.start_link([
       endpoints: [localhost: 9092],
       connection: :conn,
       producer: [topic: "topic1"],
@@ -127,9 +129,9 @@ defmodule Elsa.Supervisor do
   @doc """
   Starts producer processes under Elsa's `DynamicSupervisor` for the specified connection.
 
-  Polling cannot be configured for producers at runtime. Configuration at `Elsa.Supervisor` start
+  Polling cannot be configured for producers at runtime. Configuration at `Elsa.ElsaSupervisor` start
   is how polling will behave for all producers on that connection. Other than polling, producer
-  configuration is the same as `Elsa.Supervisor.start_link/1`.
+  configuration is the same as `Elsa.ElsaSupervisor.start_link/1`.
 
   ## Producer Config
 
@@ -152,7 +154,7 @@ defmodule Elsa.Supervisor do
 
     children =
       [
-        {Elsa.Registry, name: registry},
+        {ElsaRegistry, name: registry},
         {DynamicSupervisor, strategy: :one_for_one, name: dynamic_supervisor(registry)},
         start_client(args),
         producer_spec(registry, Keyword.get(args, :producer)),
@@ -180,9 +182,9 @@ defmodule Elsa.Supervisor do
       args
       |> Keyword.put(:registry, registry)
       |> Keyword.put(:connection, connection)
-      |> Keyword.put(:name, via_name(registry, Elsa.Group.Supervisor))
+      |> Keyword.put(:name, via_name(registry, Elsa.Group.GroupSupervisor))
 
-    {Elsa.Group.Supervisor, group_consumer_args}
+    {Elsa.Group.GroupSupervisor, group_consumer_args}
   end
 
   defp start_consumer(_connection, _registry, nil), do: []
