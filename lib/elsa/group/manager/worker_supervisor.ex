@@ -139,7 +139,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     Logger.info("Starting group consumer worker: #{inspect(init_args)}")
 
     supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_dynamic_supervisor}}
-    {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Elsa.Consumer.Worker, init_args})
+    {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
     ref = Process.monitor(worker_pid)
 
     new_worker = %WorkerState{
