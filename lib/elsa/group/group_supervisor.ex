@@ -26,12 +26,9 @@ defmodule Elsa.Group.GroupSupervisor do
 
   @impl Supervisor
   def init(init_arg) do
-    connection = Keyword.fetch!(init_arg, :connection)
-    registry = registry(connection)
-
     children =
       [
-        {DynamicSupervisor, [strategy: :one_for_one, name: {:via, ElsaRegistry, {registry, :worker_supervisor}}]},
+        {Elsa.Group.Manager.WorkerSupervisor, init_arg},
         {Elsa.Group.Manager, manager_args(init_arg)}
       ]
       |> List.flatten()

@@ -12,7 +12,7 @@ defmodule Elsa.Group.Manager do
 
   alias Elsa.ElsaRegistry
   alias Elsa.Group.Acknowledger
-  alias Elsa.Group.Manager.WorkerManager
+  alias Elsa.Group.Manager.WorkerSupervisor
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 
@@ -192,14 +192,14 @@ defmodule Elsa.Group.Manager do
 
   def handle_call(:revoke_assignments, _from, state) do
     Logger.info("Assignments revoked for group #{state.group}")
-    new_workers = WorkerManager.stop_all_workers(state.connection, state.workers)
+    new_workers = WorkerSupervisor.stop_all_workers(state.connection, state.workers)
     :ok = apply(state.assignments_revoked_handler, [])
     {:reply, :ok, %{state | workers: new_workers, generation_id: nil}}
   end
 
   def handle_info({:DOWN, ref, :process, object, reason}, state) do
     Logger.debug(fn -> "#{__MODULE__}: worker death: #{inspect(object)} - #{inspect(reason)}" end)
-    new_workers = WorkerManager.restart_worker(state.workers, ref, state)
+    new_workers = WorkerSupervisor.restart_worker(state.workers, ref, state)
 
     {:noreply, %{state | workers: new_workers}}
   end
@@ -215,7 +215,7 @@ defmodule Elsa.Group.Manager do
 
   def terminate(reason, state) do
     Logger.debug(fn -> "#{__MODULE__} : Terminating #{state.connection}" end)
-    _ = WorkerManager.stop_all_workers(state.connection, state.workers)
+    _ = WorkerSupervisor.stop_all_workers(state.connection, state.workers)
 
     shutdown_and_wait(state.acknowledger_pid)
     shutdown_and_wait(state.group_coordinator_pid)
@@ -234,7 +234,7 @@ defmodule Elsa.Group.Manager do
 
   defp start_workers(state, generation_id, assignments) do
     Enum.reduce(assignments, state.workers, fn assignment, workers ->
-      WorkerManager.start_worker(workers, generation_id, assignment, state)
+      WorkerSupervisor.start_worker(workers, generation_id, assignment, state)
     end)
   end
 
