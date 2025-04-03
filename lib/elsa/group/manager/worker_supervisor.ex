@@ -87,6 +87,10 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       # Synchronously stops the DynamicSupervisor and its children
       DynamicSupervisor.stop(dynamic_worker_supervisor)
 
+      # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
+      # so that it will restart reliably
+      _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
+
       # Restart the dynamic supervisor
       _ = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
     end)
