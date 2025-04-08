@@ -191,7 +191,7 @@ defmodule Elsa.Group.Manager do
   end
 
   def handle_call(:revoke_assignments, _from, state) do
-    Logger.info("Assignments revoked for group #{state.group}")
+    Logger.info("#{__MODULE__}: Assignments revoked for group #{state.group}")
     new_workers = WorkerSupervisor.stop_all_workers(state.connection, state.workers)
     :ok = apply(state.assignments_revoked_handler, [])
     {:reply, :ok, %{state | workers: new_workers, generation_id: nil}}
@@ -215,7 +215,7 @@ defmodule Elsa.Group.Manager do
 
   def terminate(reason, state) do
     Logger.debug(fn -> "#{__MODULE__} : Terminating #{state.connection}" end)
-    _ = WorkerSupervisor.stop_all_workers(state.connection, state.workers)
+    _ = WorkerSupervisor.stop_all_workers(state.connection, state.workers, restart_supervisor: false)
 
     shutdown_and_wait(state.acknowledger_pid)
     shutdown_and_wait(state.group_coordinator_pid)
