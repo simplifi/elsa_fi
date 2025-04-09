@@ -76,6 +76,10 @@ defmodule Elsa.ElsaSupervisor do
   * `:assignments_revoked_handler` - Optional. Zero arity function that will be called when assignments are revoked.
     All workers will be shutdown before callback is invoked and must return `:ok`.
 
+  * `:worker_supervisor_max_restarts` - Optional. max_restarts option passed to the WorkerSupervisor.  Default 30.
+
+  # `:worker_supervisor_max_seconds` - Optional. max_seconds option passed to the WorkerSupervisor.  Default 5.
+
   * `:config` - Optional. Consumer configuration options passed to `brod_consumer`.
 
 

@@ -44,14 +44,18 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   def init(opts) do
     connection = Keyword.fetch!(opts, :connection)
 
-    Logger.info("Initializing WorkerSupervisor #{inspect(self())} for connection #{inspect(connection)}")
-
     children = [
       {DynamicSupervisor,
        [id: :worker_dynamic_supervisor, name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}}]}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children,
+      strategy: :one_for_one,
+      # Normal restarts are pretty common, for example, if the group coordinator isn't available yet.
+      # So we need to allow substantially more than the default 3 restart in 5 seconds.
+      max_restarts: Keyword.get(opts, :worker_supervisor_max_restarts, 30),
+      max_seconds: Keyword.get(opts, :worker_supervisor_max_seconds, 5)
+    )
   end
 
   @doc """
@@ -66,9 +70,13 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
   @doc """
   Terminate all workers under the supervisor, giving them a chance to exit gracefully.
+
+  Options:
+    :restart_supervisor - if true, this function will restart the dynamic supervisor after killing it off.
+      Default true.
   """
-  @spec stop_all_workers(Elsa.connection(), map()) :: map()
-  def stop_all_workers(connection, workers) do
+  @spec stop_all_workers(Elsa.connection(), map(), list()) :: map()
+  def stop_all_workers(connection, workers, options \\ []) do
     # Demonitor all the workers, so that our client doesn't get a bunch of :EXIT signals
     workers
     |> Map.values()
@@ -92,7 +100,9 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
 
       # Restart the dynamic supervisor
-      _ = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
+      if Keyword.get(options, :restart_supervisor, true) do
+        _ = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
+      end
     end)
 
     %{}
@@ -140,7 +150,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       config: state.config
     ]
 
-    Logger.info("Starting group consumer worker: #{inspect(init_args)}")
+    Logger.info("#{__MODULE__}: Starting group consumer worker: #{inspect(init_args)}")
 
     supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_dynamic_supervisor}}
     {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
