@@ -128,7 +128,7 @@ defmodule Elsa.ConsumerTest do
       :brod.stop_client(:test_client)
     end)
 
-    :timer.sleep(@brod_init_sleep_ms)
+    #:timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.with_index()

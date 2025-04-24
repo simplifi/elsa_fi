@@ -108,7 +108,7 @@ defmodule Elsa.Consumer.WorkerTest do
       )
 
     Patiently.wait_for(fn -> Elsa.Producer.ready?(connection) end)
-    :timer.sleep(@brod_init_sleep_ms)
+    #:timer.sleep(@brod_init_sleep_ms)
 
     Elsa.produce(@endpoints, topic, {"2", "homerun"}, partition: 0)
 

@@ -7,10 +7,10 @@ defmodule Elsa.ProducerTest do
   alias Elsa.Producer
   require Elsa.Message
 
+  require Logger
+
   @brokers Application.compile_env(:elsa_fi, :brokers)
   @moduletag capture_log: true
-  # Hack time for brod not working right if you don't give it a moment to initialize
-  @brod_init_sleep_ms 500
 
   describe "producer managers" do
     setup do
@@ -32,7 +32,7 @@ defmodule Elsa.ProducerTest do
         assert_down(supervisor)
       end)
 
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       [connection: connection, topics: [topic, topic2], registry: Elsa.ElsaSupervisor.registry(connection)]
     end
@@ -54,6 +54,8 @@ defmodule Elsa.ProducerTest do
         dwell: 1_000,
         max_tries: 30
       )
+
+      Producer.ready?(connection)
 
       Producer.produce(connection, topic, message)
       Producer.produce(connection, topic2, message2)
@@ -86,8 +88,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic, messages, produce_opts)
 
@@ -135,8 +136,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       messages = [
         %{key: "key1", value: "value1", headers: [{"header1", "one"}, {"header2", "two"}]},
@@ -167,6 +167,8 @@ defmodule Elsa.ProducerTest do
   describe "partitioner functions" do
     test "produces to a topic partition randomly" do
       Elsa.create_topic(@brokers, "random-topic")
+      {:ok, topics} = Elsa.list_topics(@brokers)
+      Logger.info("topics: #{inspect(topics)}")
       connection = :elsa_test3
 
       {:ok, supervisor} =
@@ -174,8 +176,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, "random-topic", [{"key1", "value1"}, {"key2", "value2"}],
         partitioner: Elsa.Partitioner.Random
@@ -195,8 +196,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, "hashed-topic", {"key", "value"}, partitioner: Elsa.Partitioner.Md5)
 
@@ -216,8 +216,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic, {"key", "value"}, partitioner: :default)
 
@@ -251,8 +250,7 @@ defmodule Elsa.ProducerTest do
 
       Elsa.ElsaSupervisor.start_producer(connection, topic: topic1)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic1, {"key1", "value1"}, [])
 
@@ -286,7 +284,8 @@ defmodule Elsa.ProducerTest do
           :ok ->
             true
 
-          _ ->
+          err ->
+            Logger.info("Produce to #{inspect(topic)} failed: #{inspect(err)}")
             false
         end
       end,

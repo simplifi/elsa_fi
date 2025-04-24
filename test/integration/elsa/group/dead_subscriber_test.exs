@@ -23,7 +23,7 @@ defmodule Elsa.Group.SubscriberDeadTest do
         ]
       )
 
-    :timer.sleep(@brod_init_sleep_ms)
+    #:timer.sleep(@brod_init_sleep_ms)
 
     send_messages(0, ["message1"])
     send_messages(1, ["message2"])
@@ -62,7 +62,7 @@ defmodule Elsa.Group.SubscriberDeadTest do
       :brod.stop_client(:test_client)
     end)
 
-    :timer.sleep(@brod_init_sleep_ms)
+    #:timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.each(fn msg ->

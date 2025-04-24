@@ -89,6 +89,8 @@ defmodule Elsa.Producer do
   defp transform_message(message), do: %{key: "", value: IO.iodata_to_binary(message)}
 
   defp do_produce_sync(connection, topic, messages, opts) do
+    Logger.info("Sync producing to #{topic}")
+
     Elsa.Util.with_registry(connection, fn registry ->
       with {:ok, partitioner} <- get_partitioner(registry, topic, opts),
            message_chunks <- create_message_chunks(partitioner, messages),
@@ -139,6 +141,7 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
+    Logger.info("Looking for partitioner in #{inspect(registry)}, #{inspect(topic)}, #{inspect(opts)}")
     Elsa.Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
