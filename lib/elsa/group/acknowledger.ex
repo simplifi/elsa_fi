@@ -50,6 +50,19 @@ defmodule Elsa.Group.Acknowledger do
   end
 
   @doc """
+  Update the latest offset for a topic and partition. Primarily used when a consumer worker
+  gets a partition assignments with an offset, so that future calls to get_latest_offset will
+  return an up-to-date result.
+
+  Failing to set this on partition assignment can cause a rewind to occur if the worker
+  restarts before acking anything.
+  """
+  @spec set_latest_offset(GenServer.server(), Elsa.topic(), Elsa.partition(), Elsa.Group.Manager.begin_offset()) :: :ok
+  def set_latest_offset(acknowledger, topic, partition, offset) do
+    GenServer.call(acknowledger, {:set_latest_offset, topic, partition, offset})
+  end
+
+  @doc """
   Instantiate an acknowledger process and register it to the Elsa registry.
   """
   @spec start_link(term()) :: GenServer.on_start()
@@ -73,6 +86,13 @@ defmodule Elsa.Group.Acknowledger do
   end
 
   @impl GenServer
+  @spec handle_continue(:get_coordinator, %{
+          :connection => atom() | binary(),
+          :group_coordinator_pid => any(),
+          optional(any()) => any()
+        }) ::
+          {:noreply,
+           %{:connection => atom() | binary(), :group_coordinator_pid => :undefined | pid(), optional(any()) => any()}}
   def handle_continue(:get_coordinator, state) do
     group_coordinator_pid = ElsaRegistry.whereis_name({registry(state.connection), :brod_group_coordinator})
 
@@ -84,6 +104,25 @@ defmodule Elsa.Group.Acknowledger do
     latest_offset = Map.get(offsets, {topic, partition})
 
     {:reply, latest_offset, state}
+  end
+
+  @impl GenServer
+  def handle_call({:set_latest_offset, topic, partition, offset}, _pid, state) do
+    new_offsets = Map.update(state.current_offsets, {topic, partition}, offset, fn existing_offset ->
+      if offset < existing_offset do
+        # If this was called with an older offset, ignore it and log a warning.
+        # This should never happen, but if it does this check will avoid causing a rewind.
+        Logger.warn(
+          "#{__MODULE__} Ignoring :set_latest_offset - \
+          it was called for topic #{topic}, partition #{partition} with an offset less than the existing one. \
+          (#{offset} < #{existing_offset})")
+        existing_offset
+      else
+        offset
+      end
+    end)
+
+    {:reply, :ok, %{state | current_offsets: new_offsets}}
   end
 
   @impl GenServer
@@ -103,7 +142,7 @@ defmodule Elsa.Group.Acknowledger do
 
       false ->
         Logger.warn(
-          "Invalid generation_id #{state.generation_id} == #{generation_id}, ignoring ack - topic #{topic} partition #{partition} offset #{offset}"
+          "#{__MODULE__}: Invalid generation_id #{state.generation_id} == #{generation_id}, ignoring ack - topic #{topic} partition #{partition} offset #{offset}"
         )
 
         {:noreply, state}

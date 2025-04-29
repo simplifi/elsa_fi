@@ -152,6 +152,18 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
     Logger.info("#{__MODULE__}: Starting group consumer worker: #{inspect(init_args)}")
 
+    # If we have an assigned offset, go ahead and update our bookkeeping in the Acknowledger.
+    # This way if the worker needs to be restarted before acking anything,
+    # we won't rewind to some stale offset.
+    if assignment.begin_offset != :undefined do
+      Acknowledger.set_latest_offset(
+        {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
+        assignment.topic,
+        assignment.partition,
+        assignment.begin_offset
+      )
+    end
+
     supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_dynamic_supervisor}}
     {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
     ref = Process.monitor(worker_pid)

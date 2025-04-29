@@ -46,4 +46,22 @@ defmodule Elsa.Group.AcknowledgerTest do
 
     assert 2 == :sys.get_state(acknowledger).generation_id
   end
+
+  test "adds a new partition offset with a set call", %{acknowledger: acknowledger} do
+    assert nil == Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 2)
+    :ok = Acknowledger.set_latest_offset(acknowledger, "elsa-topic", 2, 0)
+    assert 0 = Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 2)
+  end
+
+  test "updates existing offset with a set call", %{acknowledger: acknowledger} do
+    assert 2 == Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 0)
+    :ok = Acknowledger.set_latest_offset(acknowledger, "elsa-topic", 0, 3)
+    assert 3 = Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 0)
+  end
+
+  test "ignores set call when new offset < existing offset", %{acknowledger: acknowledger} do
+    assert 2 == Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 0)
+    :ok = Acknowledger.set_latest_offset(acknowledger, "elsa-topic", 0, 1)
+    assert 2 = Acknowledger.get_latest_offset(acknowledger, "elsa-topic", 0)
+  end
 end
