@@ -8,8 +8,8 @@ defmodule Elsa.Group.Manager.WorkerSupervisorTest do
   alias Elsa.ElsaRegistry
   alias Elsa.ElsaSupervisor
   alias Elsa.Group.Acknowledger
-  alias Elsa.Group.Manager.WorkerSupervisor
   alias Elsa.Group.Manager.State
+  alias Elsa.Group.Manager.WorkerSupervisor
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 

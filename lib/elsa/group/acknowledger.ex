@@ -108,18 +108,21 @@ defmodule Elsa.Group.Acknowledger do
 
   @impl GenServer
   def handle_call({:set_latest_offset, topic, partition, offset}, _pid, state) do
-    new_offsets = Map.update(state.current_offsets, {topic, partition}, offset, fn existing_offset ->
-      if offset < existing_offset do
-        # If this was called with an older offset, ignore it and log a warning.
-        # This should never happen, but if it does this check will avoid causing a rewind.
-        Logger.warn(
-          "#{__MODULE__} Ignoring :set_latest_offset - \
-          it was called for topic #{topic}, partition #{partition} with an offset (#{offset}) less than the existing one (#{existing_offset}).")
-        existing_offset
-      else
-        offset
-      end
-    end)
+    new_offsets =
+      Map.update(state.current_offsets, {topic, partition}, offset, fn existing_offset ->
+        if offset < existing_offset do
+          # If this was called with an older offset, ignore it and log a warning.
+          # This should never happen, but if it does this check will avoid causing a rewind.
+          Logger.warn(
+            "#{__MODULE__} Ignoring :set_latest_offset - \
+          it was called for topic #{topic}, partition #{partition} with an offset (#{offset}) less than the existing one (#{existing_offset})."
+          )
+
+          existing_offset
+        else
+          offset
+        end
+      end)
 
     {:reply, :ok, %{state | current_offsets: new_offsets}}
   end
