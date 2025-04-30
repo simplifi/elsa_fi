@@ -114,8 +114,7 @@ defmodule Elsa.Group.Acknowledger do
         # This should never happen, but if it does this check will avoid causing a rewind.
         Logger.warn(
           "#{__MODULE__} Ignoring :set_latest_offset - \
-          it was called for topic #{topic}, partition #{partition} with an offset less than the existing one. \
-          (#{offset} < #{existing_offset})")
+          it was called for topic #{topic}, partition #{partition} with an offset (#{offset}) less than the existing one (#{existing_offset}).")
         existing_offset
       else
         offset
