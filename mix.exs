@@ -29,7 +29,8 @@ defmodule Elsa.MixProject do
 
   defp deps do
     [
-      {:brod, "~> 4.4"},
+      # Pointing to a fork until https://github.com/kafka4beam/brod/pull/625 gets merged in 
+      {:brod, git: "https://github.com/simplifi/brod", ref: "7304dc33b524fe32aa620890ef773ebc3b0928c3"},
       {:patiently, "~> 0.2", only: [:dev, :test, :integration]},
       {:divo, "~> 2.0", only: [:dev, :test, :integration], override: true},
       {:divo_kafka, "~> 1.0", only: [:dev, :test, :integration]},
