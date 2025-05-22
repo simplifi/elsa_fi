@@ -26,8 +26,83 @@ defmodule Elsa.Producer do
   alias Elsa.ElsaRegistry
   alias Elsa.Util
 
-  @partition_count_retries 5
+  @partition_count_tries 5
 
+  @spec produce(
+          atom() | [{atom() | binary(), pos_integer()}],
+          binary(),
+          binary()
+          | [
+              binary()
+              | maybe_improper_list(
+                  binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                  binary() | []
+                )
+              | {binary()
+                 | maybe_improper_list(
+                     binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                     binary() | []
+                   ),
+                 binary()
+                 | maybe_improper_list(
+                     binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                     binary() | []
+                   )}
+              | %{
+                  key:
+                    binary()
+                    | maybe_improper_list(
+                        binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                        binary() | []
+                      ),
+                  value:
+                    binary()
+                    | maybe_improper_list(
+                        binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                        binary() | []
+                      )
+                }
+            ]
+          | {binary()
+             | maybe_improper_list(
+                 binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                 binary() | []
+               ),
+             binary()
+             | maybe_improper_list(
+                 binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                 binary() | []
+               )}
+          | %{
+              key:
+                binary()
+                | maybe_improper_list(
+                    binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                    binary() | []
+                  ),
+              value:
+                binary()
+                | maybe_improper_list(
+                    binary() | maybe_improper_list(any(), binary() | []) | byte(),
+                    binary() | []
+                  )
+            }
+        ) ::
+          :ok
+          | {:error, any()}
+          | {:error, binary(),
+             [
+               %Elsa.Message{
+                 generation_id: nil | integer(),
+                 headers: list(),
+                 key: any(),
+                 offset: integer(),
+                 partition: non_neg_integer(),
+                 timestamp: any(),
+                 topic: binary(),
+                 value: any()
+               }
+             ]}
   @doc """
   Write the supplied message(s) to the desired topic/partition via an endpoint list and optional named client.
   If no client is supplied, the default named client is chosen.
@@ -147,7 +222,7 @@ defmodule Elsa.Producer do
     Elsa.Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
-          {:ok, partition_num} = get_partitions_count(client, topic, @partition_count_retries)
+          {:ok, partition_num} = get_partitions_count(client, topic, @partition_count_tries)
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
           {:ok, fn %{key: key} -> partitioner.partition(partition_num, key) end}
 

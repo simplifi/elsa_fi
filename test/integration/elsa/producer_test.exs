@@ -18,8 +18,8 @@ defmodule Elsa.ProducerTest do
       topic2 = "producer-test-secondary"
       connection = :elsa_producer_test2
 
-      Elsa.create_topic(@brokers, topic)
-      Elsa.create_topic(@brokers, topic2)
+      :ok = Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic2)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(
@@ -80,7 +80,7 @@ defmodule Elsa.ProducerTest do
 
   describe "preconfigured broker" do
     data_test "produces to topic" do
-      Elsa.create_topic(@brokers, topic, partitions: num_partitions)
+      :ok = Elsa.create_topic(@brokers, topic, partitions: num_partitions)
       connection = String.to_atom(topic)
 
       {:ok, supervisor} =
@@ -129,7 +129,7 @@ defmodule Elsa.ProducerTest do
     test "produce can have custom headers" do
       topic = "headers-topic-1"
       connection = String.to_atom(topic)
-      Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
@@ -153,7 +153,7 @@ defmodule Elsa.ProducerTest do
 
   describe "ad hoc produce_sync" do
     test "produces to the specified topic with no prior broker" do
-      Elsa.create_topic(@brokers, "producer-topic3")
+      :ok = Elsa.create_topic(@brokers, "producer-topic3")
 
       iolist_message = [<<0, 0, 0, 0, 10>>, [[20], [[[[0], ['H', "id-token"]]]]]]
       Producer.produce(@brokers, "producer-topic3", [{"key1", "value1"}, {"key2", iolist_message}], partition: 0)
@@ -166,7 +166,7 @@ defmodule Elsa.ProducerTest do
 
   describe "partitioner functions" do
     test "produces to a topic partition randomly" do
-      Elsa.create_topic(@brokers, "random-topic")
+      :ok = Elsa.create_topic(@brokers, "random-topic")
       {:ok, topics} = Elsa.list_topics(@brokers)
       Logger.info("topics: #{inspect(topics)}")
       connection = :elsa_test3
@@ -188,7 +188,7 @@ defmodule Elsa.ProducerTest do
     end
 
     test "producers to a topic partition based on an md5 hash of the key" do
-      Elsa.create_topic(@brokers, "hashed-topic", partitions: 5)
+      :ok = Elsa.create_topic(@brokers, "hashed-topic", partitions: 5)
       connection = :elsa_test4
 
       {:ok, supervisor} =
@@ -209,7 +209,7 @@ defmodule Elsa.ProducerTest do
       topic = "old-default-topic"
       connection = :elsa_test_old_partitioner_name
 
-      Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
@@ -231,10 +231,10 @@ defmodule Elsa.ProducerTest do
       connection = :elsa_established_connection_test
 
       topic1 = "dynamic-producer-topic1"
-      Elsa.create_topic(@brokers, topic1)
+      :ok = Elsa.create_topic(@brokers, topic1)
 
       topic2 = "dynamic-producer-topic2"
-      Elsa.create_topic(@brokers, topic2)
+      :ok = Elsa.create_topic(@brokers, topic2)
 
       start_supervised(
         {Elsa.ElsaSupervisor,
@@ -268,7 +268,7 @@ defmodule Elsa.ProducerTest do
 
   describe "no producer started" do
     test "will return error when no client has been started" do
-      Elsa.create_topic(@brokers, "bad-topic")
+      :ok = Elsa.create_topic(@brokers, "bad-topic")
 
       messages = [{"key", "value"}]
 
