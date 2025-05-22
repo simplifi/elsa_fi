@@ -26,6 +26,8 @@ defmodule Elsa.Producer do
   alias Elsa.ElsaRegistry
   alias Elsa.Util
 
+  @partition_count_retries 5
+
   @doc """
   Write the supplied message(s) to the desired topic/partition via an endpoint list and optional named client.
   If no client is supplied, the default named client is chosen.
@@ -145,7 +147,7 @@ defmodule Elsa.Producer do
     Elsa.Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
-          {:ok, partition_num} = :brod_client.get_partitions_count(client, topic)
+          {:ok, partition_num} = get_partitions_count(client, topic, @partition_count_retries)
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
           {:ok, fn %{key: key} -> partitioner.partition(partition_num, key) end}
 
@@ -156,6 +158,19 @@ defmodule Elsa.Producer do
   end
 
   @partitioners %{default: Elsa.Partitioner.Default, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
+
+  defp get_partitions_count(_client, _topic, 0) do
+    {:error, :out_of_tries}
+  end
+
+  defp get_partitions_count(client, topic, tries) do
+    case :brod_client.get_partitions_count(client, topic) do
+      {:ok, partition_num} -> {:ok, partition_num}
+      {:error, reason} ->
+        Logger.info("#{__MODULE__}: error #{reason}. retrying get_partitions count for #{topic}")
+        get_partitions_count(client, topic, tries - 1)
+    end
+  end
 
   defp remap_deprecated(key) when key in [:default, :md5, :random] do
     mod = Map.get(@partitioners, key)
