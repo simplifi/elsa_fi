@@ -58,6 +58,8 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:config` - Optional. Producer configuration options passed to `brod_producer`.
 
+  * `:metadata_request_config` - Optional. See Metadata Request Config
+
 
   ## Group Consumer Config
 
@@ -82,6 +84,8 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:config` - Optional. Consumer configuration options passed to `brod_consumer`.
 
+  * `:metadata_request_config` - Optional. See Metadata Request Config
+
 
   ## Consumer Config
 
@@ -96,6 +100,23 @@ defmodule Elsa.ElsaSupervisor do
   * `:handler_init_args` - Optional. Any args to be passed to init function in handler module.
 
   * `:poll` - Optional. If set to number of milliseconds, will poll for new partitions and startup consumers on the fly.
+
+  * `:metadata_request_config` - Optional. See Metadata Request Config
+
+
+  ## Metadata Request Config
+
+  * `:metadata_request_tries` - Optional, default 5.  The number of tries allowed when querying topic metadata.
+    Typically these retries are necessary when creating topics on the fly and immediately attempting to connect
+    a producer or consumer to them.  That's because topic creation in kafka is asynchronous -- even though a
+    call to Elsa.create_topic may return success, that doesn't mean that the metadata for that new topic has
+    propagated to all the brokers.
+
+    The defaults for `metadata_request_tries` and `metadata_request_dwell_ms` work well for testing with kafka in a
+    local docker container. These values may need to be increased if creating topics on the fly with remote kafka
+    brokers.
+
+  * `:metadata_request_dwell_ms` - Optional, default 100.  The amount of time to wait between tries when querying topic metadata.
 
 
   ## Example

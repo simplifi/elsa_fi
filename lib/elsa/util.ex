@@ -5,6 +5,10 @@ defmodule Elsa.Util do
   client process for interacting with a cluster.
   """
 
+  require Logger
+
+  alias Elsa.RetryConfig
+
   @default_max_chunk_size 900_000
   @timestamp_size_in_bytes 10
 
@@ -89,6 +93,7 @@ defmodule Elsa.Util do
     :brod.start_client(endpoints, name, config)
   end
 
+  @spec chunk_by_byte_size(any(), integer()) :: list()
   @doc """
   Process messages into chunks of size up to the size specified by the calling function in bytes,
   and determined by the function argument. If no chunk size is specified the default maximum
@@ -104,18 +109,67 @@ defmodule Elsa.Util do
   @doc """
   Return the number of partitions for a given topic. Bypasses the need for a persistent client
   for lighter weight interactions from one-off calls.
-  """
-  @spec partition_count(keyword | Elsa.connection() | pid, String.t()) :: integer()
-  def partition_count(endpoints, topic) when is_list(endpoints) do
-    {:ok, metadata} = :brod.get_metadata(reformat_endpoints(endpoints), [topic])
 
-    count_partitions(metadata)
+  Note that when passing in a connection/pid for the first argument, the underlying brod calls
+  will cache the results, including the non-existence of a topic!  So if this function is being
+  used to wait for a recently created topic to be fully online, pass in a list of endpoints
+  rather than a connection.  For convenience, the `get_endpoints/1` is provided to extract
+  the endpoints from a connection.
+  """
+  @spec partition_count(list() | Elsa.connection() | pid(), String.t(), RetryConfig.t()) ::
+          {:ok, integer()} | {:error, any()}
+  def partition_count(connection_or_endpoints, topic, retry_config \\ RetryConfig.no_retry())
+
+  def partition_count(_client_or_endpoints, _topic, %RetryConfig{tries: 0}) do
+    {:error, :out_of_tries}
   end
 
-  def partition_count(connection, topic) when is_atom(connection) or is_pid(connection) do
-    {:ok, metadata} = :brod_client.get_metadata(connection, topic)
+  def partition_count(endpoints, topic, %RetryConfig{} = retry_config) when is_list(endpoints) do
+    case :brod.get_metadata(reformat_endpoints(endpoints), [topic]) do
+      {:error, reason} -> maybe_retry(reason, endpoints, topic, retry_config)
+      {:ok, metadata} -> {:ok, count_partitions(metadata)}
+    end
+  end
 
-    count_partitions(metadata)
+  def partition_count(client, topic, %RetryConfig{} = retry_config) when is_atom(client) or is_pid(client) do
+    case :brod_client.get_partitions_count(client, topic) do
+      {:error, reason} -> maybe_retry(reason, client, topic, retry_config)
+      success -> success
+    end
+  end
+
+  @doc """
+  Like `partition_count/3` but returns only the partition count, and raises on failure
+  """
+  @spec partition_count!(list() | Elsa.connection() | pid, String.t(), RetryConfig.t()) :: integer()
+  def partition_count!(connection_or_endpoints, topic, retry_config \\ RetryConfig.no_retry())
+
+  def partition_count!(connection_or_endpoints, topic, %RetryConfig{} = retry_config) do
+    case partition_count(connection_or_endpoints, topic, retry_config) do
+      {:ok, partition_count} ->
+        partition_count
+
+      {:error, error} ->
+        raise "#{__MODULE__}.partition_count! failed: #{error}"
+    end
+  end
+
+  @spec get_endpoints(Elsa.connection()) :: {:ok, list()} | {:error, any}
+  def get_endpoints(connection) do
+    case :brod_client.get_bootstrap(connection) do
+      {:ok, {endpoints, _}} -> {:ok, endpoints}
+      {:ok, endpoints} -> {:ok, endpoints}
+      error -> error
+    end
+  end
+
+  defp maybe_retry(reason, endpoints_or_client, topic, retry_config) do
+    Logger.info(
+      "#{__MODULE__}: error getting partition metadata for #{topic}: #{reason}. #{retry_config.tries - 1} tries remaining."
+    )
+
+    :timer.sleep(retry_config.dwell_ms)
+    partition_count(endpoints_or_client, topic, RetryConfig.decrement(retry_config))
   end
 
   # Handle brod < 3.16

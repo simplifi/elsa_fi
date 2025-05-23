@@ -2,6 +2,8 @@ defmodule Elsa.Consumer.Worker.Initializer do
   @moduledoc false
 
   alias Elsa.ElsaRegistry
+  alias Elsa.RetryConfig
+  alias Elsa.Util
 
   @type init_opts :: [
           connection: atom(),
@@ -26,7 +28,14 @@ defmodule Elsa.Consumer.Worker.Initializer do
   end
 
   defp configure_topic(topic, registry, brod_client, init_arg) do
-    Elsa.Util.partition_count(brod_client, topic)
+    retry_config = RetryConfig.new(Keyword.get(init_arg, :metadata_request_config, []))
+
+    # Use the non-connection based partition_count.
+    # This circumvents a behavior in brod that caches topics as non-existent,
+    # which would break our ability to retry.
+    {:ok, endpoints} = Elsa.Util.get_endpoints(brod_client)
+
+    Util.partition_count!(endpoints, topic, retry_config)
     |> to_child_specs(registry, topic, init_arg)
   end
 
