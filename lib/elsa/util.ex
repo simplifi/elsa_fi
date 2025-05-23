@@ -119,26 +119,22 @@ defmodule Elsa.Util do
   @spec partition_count(list() | Elsa.connection() | pid(), String.t(), RetryConfig.t()) ::
           {:ok, integer()} | {:error, any()}
   def partition_count(connection_or_endpoints, topic, retry_config \\ RetryConfig.no_retry())
+
   def partition_count(_client_or_endpoints, _topic, %RetryConfig{tries: 0}) do
     {:error, :out_of_tries}
   end
 
   def partition_count(endpoints, topic, %RetryConfig{} = retry_config) when is_list(endpoints) do
     case :brod.get_metadata(reformat_endpoints(endpoints), [topic]) do
-      {:error, reason} ->
-        maybe_retry(reason, endpoints, topic, retry_config)
-      {:ok, metadata} ->
-        {:ok, count_partitions(metadata)}
-
+      {:error, reason} -> maybe_retry(reason, endpoints, topic, retry_config)
+      {:ok, metadata} -> {:ok, count_partitions(metadata)}
     end
   end
 
   def partition_count(client, topic, %RetryConfig{} = retry_config) when is_atom(client) or is_pid(client) do
     case :brod_client.get_partitions_count(client, topic) do
-      {:error, reason} ->
-        maybe_retry(reason, client, topic, retry_config)
-      success ->
-        success
+      {:error, reason} -> maybe_retry(reason, client, topic, retry_config)
+      success -> success
     end
   end
 
@@ -168,7 +164,10 @@ defmodule Elsa.Util do
   end
 
   defp maybe_retry(reason, endpoints_or_client, topic, retry_config) do
-    Logger.info("#{__MODULE__}: error getting partition metadata for #{topic}: #{reason}. #{retry_config.tries - 1} tries remaining.")
+    Logger.info(
+      "#{__MODULE__}: error getting partition metadata for #{topic}: #{reason}. #{retry_config.tries - 1} tries remaining."
+    )
+
     :timer.sleep(retry_config.dwell_ms)
     partition_count(endpoints_or_client, topic, RetryConfig.decrement(retry_config))
   end
