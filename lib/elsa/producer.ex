@@ -24,6 +24,7 @@ defmodule Elsa.Producer do
   @type message :: {iodata(), iodata()} | binary() | %{key: iodata(), value: iodata()}
 
   alias Elsa.ElsaRegistry
+  alias Elsa.RetryConfig
   alias Elsa.Util
 
   @doc """
@@ -142,7 +143,7 @@ defmodule Elsa.Producer do
     Elsa.Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
-          {:ok, partition_num} = :brod_client.get_partitions_count(client, topic)
+          {:ok, partition_num} = Util.partition_count(client, topic, RetryConfig.no_retry())
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
           {:ok, fn %{key: key} -> partitioner.partition(partition_num, key) end}
 

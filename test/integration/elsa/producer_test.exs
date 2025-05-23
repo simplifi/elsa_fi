@@ -7,10 +7,10 @@ defmodule Elsa.ProducerTest do
   alias Elsa.Producer
   require Elsa.Message
 
+  require Logger
+
   @brokers Application.compile_env(:elsa_fi, :brokers)
   @moduletag capture_log: true
-  # Hack time for brod not working right if you don't give it a moment to initialize
-  @brod_init_sleep_ms 500
 
   describe "producer managers" do
     setup do
@@ -18,8 +18,8 @@ defmodule Elsa.ProducerTest do
       topic2 = "producer-test-secondary"
       connection = :elsa_producer_test2
 
-      Elsa.create_topic(@brokers, topic)
-      Elsa.create_topic(@brokers, topic2)
+      :ok = Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic2)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(
@@ -32,7 +32,7 @@ defmodule Elsa.ProducerTest do
         assert_down(supervisor)
       end)
 
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       [connection: connection, topics: [topic, topic2], registry: Elsa.ElsaSupervisor.registry(connection)]
     end
@@ -54,6 +54,8 @@ defmodule Elsa.ProducerTest do
         dwell: 1_000,
         max_tries: 30
       )
+
+      Producer.ready?(connection)
 
       Producer.produce(connection, topic, message)
       Producer.produce(connection, topic2, message2)
@@ -78,7 +80,7 @@ defmodule Elsa.ProducerTest do
 
   describe "preconfigured broker" do
     data_test "produces to topic" do
-      Elsa.create_topic(@brokers, topic, partitions: num_partitions)
+      :ok = Elsa.create_topic(@brokers, topic, partitions: num_partitions)
       connection = String.to_atom(topic)
 
       {:ok, supervisor} =
@@ -86,8 +88,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic, messages, produce_opts)
 
@@ -128,15 +129,14 @@ defmodule Elsa.ProducerTest do
     test "produce can have custom headers" do
       topic = "headers-topic-1"
       connection = String.to_atom(topic)
-      Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       messages = [
         %{key: "key1", value: "value1", headers: [{"header1", "one"}, {"header2", "two"}]},
@@ -153,7 +153,7 @@ defmodule Elsa.ProducerTest do
 
   describe "ad hoc produce_sync" do
     test "produces to the specified topic with no prior broker" do
-      Elsa.create_topic(@brokers, "producer-topic3")
+      :ok = Elsa.create_topic(@brokers, "producer-topic3")
 
       iolist_message = [<<0, 0, 0, 0, 10>>, [[20], [[[[0], ['H', "id-token"]]]]]]
       Producer.produce(@brokers, "producer-topic3", [{"key1", "value1"}, {"key2", iolist_message}], partition: 0)
@@ -166,7 +166,7 @@ defmodule Elsa.ProducerTest do
 
   describe "partitioner functions" do
     test "produces to a topic partition randomly" do
-      Elsa.create_topic(@brokers, "random-topic")
+      :ok = Elsa.create_topic(@brokers, "random-topic")
       connection = :elsa_test3
 
       {:ok, supervisor} =
@@ -174,8 +174,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, "random-topic", [{"key1", "value1"}, {"key2", "value2"}],
         partitioner: Elsa.Partitioner.Random
@@ -187,7 +186,7 @@ defmodule Elsa.ProducerTest do
     end
 
     test "producers to a topic partition based on an md5 hash of the key" do
-      Elsa.create_topic(@brokers, "hashed-topic", partitions: 5)
+      :ok = Elsa.create_topic(@brokers, "hashed-topic", partitions: 5)
       connection = :elsa_test4
 
       {:ok, supervisor} =
@@ -195,8 +194,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, "hashed-topic", {"key", "value"}, partitioner: Elsa.Partitioner.Md5)
 
@@ -209,15 +207,14 @@ defmodule Elsa.ProducerTest do
       topic = "old-default-topic"
       connection = :elsa_test_old_partitioner_name
 
-      Elsa.create_topic(@brokers, topic)
+      :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
         Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic, {"key", "value"}, partitioner: :default)
 
@@ -232,10 +229,10 @@ defmodule Elsa.ProducerTest do
       connection = :elsa_established_connection_test
 
       topic1 = "dynamic-producer-topic1"
-      Elsa.create_topic(@brokers, topic1)
+      :ok = Elsa.create_topic(@brokers, topic1)
 
       topic2 = "dynamic-producer-topic2"
-      Elsa.create_topic(@brokers, topic2)
+      :ok = Elsa.create_topic(@brokers, topic2)
 
       start_supervised(
         {Elsa.ElsaSupervisor,
@@ -251,8 +248,7 @@ defmodule Elsa.ProducerTest do
 
       Elsa.ElsaSupervisor.start_producer(connection, topic: topic1)
 
-      # Hack for brod not working right if you don't give it a moment to initialize
-      :timer.sleep(@brod_init_sleep_ms)
+      Producer.ready?(connection)
 
       patient_produce(connection, topic1, {"key1", "value1"}, [])
 
@@ -270,7 +266,7 @@ defmodule Elsa.ProducerTest do
 
   describe "no producer started" do
     test "will return error when no client has been started" do
-      Elsa.create_topic(@brokers, "bad-topic")
+      :ok = Elsa.create_topic(@brokers, "bad-topic")
 
       messages = [{"key", "value"}]
 
@@ -286,7 +282,8 @@ defmodule Elsa.ProducerTest do
           :ok ->
             true
 
-          _ ->
+          err ->
+            Logger.info("Produce to #{inspect(topic)} failed: #{inspect(err)}")
             false
         end
       end,

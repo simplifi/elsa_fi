@@ -1,4 +1,6 @@
 defmodule Elsa.Producer.Initializer do
+  alias Elsa.RetryConfig
+
   @moduledoc false
   @spec init(registry :: atom(), producer_configs :: list(keyword)) :: [Supervisor.child_spec()]
   def init(registry, producer_configs) do
@@ -19,8 +21,13 @@ defmodule Elsa.Producer.Initializer do
   defp child_spec(registry, brod_client, producer_config) do
     topic = Keyword.fetch!(producer_config, :topic)
     config = Keyword.get(producer_config, :config, [])
+    retry_config = RetryConfig.new(Keyword.get(producer_config, :metadata_request_config, []))
 
-    partitions = Elsa.Util.partition_count(brod_client, topic)
+    # Use the non-connection based partition_count.
+    # This circumvents a behavior in brod that caches topics as non-existent,
+    # which would break our ability to retry.
+    {:ok, endpoints} = Elsa.Util.get_endpoints(brod_client)
+    {:ok, partitions} = Elsa.Util.partition_count(endpoints, topic, retry_config)
 
     0..(partitions - 1)
     |> Enum.map(fn partition ->
