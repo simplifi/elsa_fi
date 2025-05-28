@@ -3,14 +3,16 @@ defmodule Elsa.TopicTest do
 
   import Mock
 
-  require Elsa.Topic
+  alias Elsa.Util
+
+  require Elsa.Topic, as: Topic
 
   @endpoints Application.compile_env(:elsa_fi, :brokers)
 
   describe "create_topic/3" do
     test "returns error tuple when topic fails to get created" do
       with_mocks([
-        {Elsa.Util, [:passthrough], [get_api_version: fn _, :create_topics -> :version end]},
+        {Util, [:passthrough], [get_api_version: fn _, :create_topics -> :version end]},
         {:kpro_req_lib, [:passthrough], [create_topics: fn _, _, _ -> :topic_request end]},
         {:kpro, [:passthrough],
          [
@@ -35,10 +37,10 @@ defmodule Elsa.TopicTest do
         ]
       }
 
-      kpro_rsp = Elsa.Topic.kpro_rsp(api: :create_topics, vsn: 2, msg: message)
+      kpro_rsp = Topic.kpro_rsp(api: :create_topics, vsn: 2, msg: message)
 
       with_mocks([
-        {Elsa.Util, [:passthrough], [get_api_version: fn _, :create_topics -> :version end]},
+        {Util, [:passthrough], [get_api_version: fn _, :create_topics -> :version end]},
         {:kpro_req_lib, [:passthrough], [create_topics: fn _, _, _ -> :topic_request end]},
         {:kpro, [:passthrough],
          [request_sync: fn _, _, _ -> {:ok, kpro_rsp} end, connect_controller: fn _, _ -> {:ok, "connected"} end]}
@@ -61,10 +63,10 @@ defmodule Elsa.TopicTest do
         ]
       }
 
-      kpro_rsp = Elsa.Topic.kpro_rsp(api: :delete_topics, vsn: 2, msg: message)
+      kpro_rsp = Topic.kpro_rsp(api: :delete_topics, vsn: 2, msg: message)
 
       with_mocks([
-        {Elsa.Util, [:passthrough], [get_api_version: fn _, :delete_topics -> :version end]},
+        {Util, [:passthrough], [get_api_version: fn _, :delete_topics -> :version end]},
         {:kpro_req_lib, [:passthrough], [delete_topics: fn _, _, _ -> :topic_request end]},
         {:kpro, [:passthrough],
          [request_sync: fn _, _, _ -> {:ok, kpro_rsp} end, connect_controller: fn _, _ -> {:ok, "connected"} end]}
@@ -121,8 +123,8 @@ defmodule Elsa.TopicTest do
       }
 
       with_mock(:brod, get_metadata: fn _, :all -> {:ok, metadata} end) do
-        assert Elsa.Topic.exists?(@endpoints, "elsa-other-topic") == true
-        assert Elsa.Topic.exists?(@endpoints, "missing-topic") == false
+        assert Topic.exists?(@endpoints, "elsa-other-topic") == true
+        assert Topic.exists?(@endpoints, "missing-topic") == false
       end
     end
   end

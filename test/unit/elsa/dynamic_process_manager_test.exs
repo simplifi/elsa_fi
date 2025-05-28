@@ -1,11 +1,13 @@
-defmodule Elsa.DynamicProcessManagerTest do
+defmodule DynamicProcessManagerTest do
   use ExUnit.Case
+
+  alias Elsa.DynamicProcessManager
 
   test "will start child process of dynamic supervisor and restart them in case supervisor dies" do
     start_supervised({DynamicSupervisor, strategy: :one_for_one, name: :dyn_sup})
 
     start_supervised(
-      {Elsa.DynamicProcessManager,
+      {DynamicProcessManager,
        id: :pm,
        name: :pm,
        dynamic_supervisor: :dyn_sup,
@@ -17,7 +19,7 @@ defmodule Elsa.DynamicProcessManagerTest do
     Process.sleep(1_000)
     assert 0 == Agent.get(:agent1, fn s -> s end)
 
-    assert {:ok, _test_server} = Elsa.DynamicProcessManager.start_child(:pm, TestServer)
+    assert {:ok, _test_server} = DynamicProcessManager.start_child(:pm, TestServer)
     assert "hello" == TestServer.echo(TestServer, "hello")
 
     Process.whereis(:dyn_sup)
@@ -32,7 +34,7 @@ defmodule Elsa.DynamicProcessManagerTest do
     start_supervised({DynamicSupervisor, strategy: :one_for_one, name: :dyn_sup})
 
     start_supervised(
-      {Elsa.DynamicProcessManager,
+      {DynamicProcessManager,
        id: :pm,
        name: :pm,
        dynamic_supervisor: :dyn_sup,
@@ -44,7 +46,7 @@ defmodule Elsa.DynamicProcessManagerTest do
     Process.sleep(1_000)
     assert 0 == Agent.get(:agent1, fn s -> s end)
 
-    assert {:ok, _test_server} = Elsa.DynamicProcessManager.start_child(:pm, TestServer)
+    assert {:ok, _test_server} = DynamicProcessManager.start_child(:pm, TestServer)
     assert "hello" == TestServer.echo(TestServer, "hello")
 
     Process.whereis(:dyn_sup)
@@ -60,7 +62,7 @@ defmodule Elsa.DynamicProcessManagerTest do
     start_supervised({DynamicSupervisor, strategy: :one_for_one, name: :dyn_sup})
 
     start_supervised({
-      Elsa.DynamicProcessManager,
+      DynamicProcessManager,
       id: :pm, name: :pm, dynamic_supervisor: :dyn_sup, initializer: {TestInitializer, :initialize, [self()]}
     })
 
@@ -75,7 +77,7 @@ defmodule Elsa.DynamicProcessManagerTest do
 
     {:ok, pm} =
       start_supervised({
-        Elsa.DynamicProcessManager,
+        DynamicProcessManager,
         id: :pm,
         name: :pm,
         dynamic_supervisor: :dyn_sup,
@@ -83,7 +85,7 @@ defmodule Elsa.DynamicProcessManagerTest do
         poll: 1_000
       })
 
-    Elsa.DynamicProcessManager.ready?(pm)
+    DynamicProcessManager.ready?(pm)
 
     assert true == alive?(:agent1)
     assert 1 == Agent.get(:agent1, fn s -> s end)
