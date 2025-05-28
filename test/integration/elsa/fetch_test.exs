@@ -1,6 +1,8 @@
-defmodule Elsa.FetchTest do
+defmodule FetchTest do
   use ExUnit.Case
   use Divo
+
+  alias Elsa.Fetch
 
   @endpoints Application.compile_env(:elsa_fi, :brokers)
 
@@ -36,7 +38,7 @@ defmodule Elsa.FetchTest do
   describe "fetch_stream/3" do
     test "fetches all messages from the specified partition" do
       result =
-        Elsa.Fetch.fetch_stream(@endpoints, "fetch-tests", partition: 2)
+        Fetch.fetch_stream(@endpoints, "fetch-tests", partition: 2)
         |> Enum.map(fn message -> message.value end)
         |> Enum.sort()
 
@@ -47,7 +49,7 @@ defmodule Elsa.FetchTest do
 
     test "fetches all messages from the topic across all partitions" do
       result =
-        Elsa.Fetch.fetch_stream(@endpoints, "fetch-tests")
+        Fetch.fetch_stream(@endpoints, "fetch-tests")
         |> Enum.map(fn message -> message.value end)
         |> Enum.sort()
 
@@ -58,7 +60,7 @@ defmodule Elsa.FetchTest do
 
     test "fetches all messages across partitions since the specified offset" do
       result =
-        Elsa.Fetch.fetch_stream(@endpoints, "fetch-tests", start_offset: 9)
+        Fetch.fetch_stream(@endpoints, "fetch-tests", start_offset: 9)
         |> Enum.map(fn message -> message.value end)
         |> Enum.sort()
 
@@ -70,9 +72,9 @@ defmodule Elsa.FetchTest do
 
   describe "search/4" do
     test "finds specified message by value or key" do
-      key_search = Elsa.Fetch.search_keys(@endpoints, "fetch-tests", "key2")
+      key_search = Fetch.search_keys(@endpoints, "fetch-tests", "key2")
       key_result = Enum.map(key_search, fn message -> {message.key, message.value} end) |> Enum.sort()
-      value_search = Elsa.Fetch.search_values(@endpoints, "fetch-tests", "val19")
+      value_search = Fetch.search_values(@endpoints, "fetch-tests", "val19")
       value_result = Enum.map(value_search, fn message -> {message.key, message.value} end)
 
       expected_by_key = [{"key2", "val2"} | Enum.map(20..29, fn num -> {"key#{num}", "val#{num}"} end)]
@@ -84,7 +86,7 @@ defmodule Elsa.FetchTest do
 
     test "finds specified message by user-defined function" do
       messages =
-        Elsa.Fetch.search(@endpoints, "fetch-tests", fn message ->
+        Fetch.search(@endpoints, "fetch-tests", fn message ->
           message.partition == 2 && String.contains?(message.key, "3")
         end)
 
@@ -95,7 +97,7 @@ defmodule Elsa.FetchTest do
 
     test "returns empty list when no match is found" do
       result =
-        Elsa.Fetch.search(@endpoints, "fetch-tests", fn message ->
+        Fetch.search(@endpoints, "fetch-tests", fn message ->
           String.contains?(message.key, "foo") || String.contains?(message.value, "foo")
         end)
         |> Enum.to_list()

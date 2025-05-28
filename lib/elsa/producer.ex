@@ -24,6 +24,7 @@ defmodule Elsa.Producer do
   @type message :: {iodata(), iodata()} | binary() | %{key: iodata(), value: iodata()}
 
   alias Elsa.ElsaRegistry
+  alias Elsa.ElsaSupervisor
   alias Elsa.Util
 
   @doc """
@@ -40,7 +41,7 @@ defmodule Elsa.Producer do
 
   def produce(endpoints, topic, messages, opts) when is_list(endpoints) do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
-    registry = Elsa.ElsaSupervisor.registry(connection)
+    registry = ElsaSupervisor.registry(connection)
 
     _ =
       case Process.whereis(registry) do
@@ -64,14 +65,14 @@ defmodule Elsa.Producer do
   end
 
   def ready?(connection) do
-    registry = Elsa.ElsaSupervisor.registry(connection)
-    via = Elsa.ElsaSupervisor.via_name(registry, :producer_process_manager)
+    registry = ElsaSupervisor.registry(connection)
+    via = ElsaSupervisor.via_name(registry, :producer_process_manager)
     Elsa.DynamicProcessManager.ready?(via)
   end
 
   defp ad_hoc_produce(endpoints, connection, topic, messages, opts) do
     with {:ok, pid} <-
-           Elsa.ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
+           ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
       ready?(connection)
       _ = produce(connection, topic, messages, opts)
       Process.unlink(pid)
@@ -89,7 +90,7 @@ defmodule Elsa.Producer do
   defp transform_message(message), do: %{key: "", value: IO.iodata_to_binary(message)}
 
   defp do_produce_sync(connection, topic, messages, opts) do
-    Elsa.Util.with_registry(connection, fn registry ->
+    Util.with_registry(connection, fn registry ->
       with {:ok, partitioner} <- get_partitioner(registry, topic, opts),
            message_chunks <- create_message_chunks(partitioner, messages),
            {:ok, _} <- produce_sync_while_successful(registry, topic, message_chunks) do
@@ -139,7 +140,7 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
-    Elsa.Util.with_client(registry, fn client ->
+    Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
           {:ok, partition_num} = :brod_client.get_partitions_count(client, topic)
