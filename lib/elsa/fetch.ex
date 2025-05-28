@@ -43,7 +43,7 @@ defmodule Elsa.Fetch do
     partitions =
       case Keyword.get(opts, :partition) do
         nil ->
-          0..(Elsa.Util.partition_count(endpoints, topic) - 1)
+          0..(Elsa.Util.partition_count!(endpoints, topic) - 1)
 
         partition ->
           [partition]

@@ -89,7 +89,7 @@ defmodule Elsa.Producer do
   defp transform_message(message), do: %{key: "", value: IO.iodata_to_binary(message)}
 
   defp do_produce_sync(connection, topic, messages, opts) do
-    Elsa.Util.with_registry(connection, fn registry ->
+    Util.with_registry(connection, fn registry ->
       with {:ok, partitioner} <- get_partitioner(registry, topic, opts),
            message_chunks <- create_message_chunks(partitioner, messages),
            {:ok, _} <- produce_sync_while_successful(registry, topic, message_chunks) do
@@ -139,12 +139,12 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
-    Elsa.Util.with_client(registry, fn client ->
+    Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
-          {:ok, partition_num} = :brod_client.get_partitions_count(client, topic)
+          partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
-          {:ok, fn %{key: key} -> partitioner.partition(partition_num, key) end}
+          {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
 
         partition ->
           {:ok, fn _msg -> partition end}
