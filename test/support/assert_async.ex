@@ -1,8 +1,11 @@
 defmodule AssertAsync do
   @moduledoc false
+
   defmodule Impl do
     @moduledoc false
     require Logger
+
+    alias ExUnit.AssertionError
 
     @defaults %{
       sleep: 200,
@@ -22,10 +25,10 @@ defmodule AssertAsync do
     defp do_assert(function, %{max_tries: max_tries} = opts) do
       function.()
     rescue
-      e in ExUnit.AssertionError ->
+      e in AssertionError ->
         if opts.debug do
           Logger.debug(fn ->
-            "AssertAsync(remaining #{max_tries - 1}): #{ExUnit.AssertionError.message(e)}"
+            "AssertAsync(remaining #{max_tries - 1}): #{AssertionError.message(e)}"
           end)
         end
 
@@ -36,7 +39,7 @@ defmodule AssertAsync do
 
   defmacro assert_async(opts \\ [], do: do_block) do
     quote do
-      AssertAsync.Impl.assert(fn -> unquote(do_block) end, unquote(opts))
+      Impl.assert(fn -> unquote(do_block) end, unquote(opts))
     end
   end
 end

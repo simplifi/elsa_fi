@@ -4,8 +4,10 @@ defmodule Elsa.ProducerTest do
   import Checkov
   import TestHelper
 
+  alias Elsa.ElsaSupervisor
   alias Elsa.Producer
-  require Elsa.Message
+
+  require Elsa.Message, as: Message
 
   require Logger
 
@@ -22,7 +24,7 @@ defmodule Elsa.ProducerTest do
       :ok = Elsa.create_topic(@brokers, topic2)
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(
+        ElsaSupervisor.start_link(
           endpoints: @brokers,
           connection: connection,
           producer: [[topic: topic], [topic: topic2]]
@@ -34,7 +36,7 @@ defmodule Elsa.ProducerTest do
 
       Producer.ready?(connection)
 
-      [connection: connection, topics: [topic, topic2], registry: Elsa.ElsaSupervisor.registry(connection)]
+      [connection: connection, topics: [topic, topic2], registry: ElsaSupervisor.registry(connection)]
     end
 
     test "restarts producers when the client is dropped", %{
@@ -62,9 +64,9 @@ defmodule Elsa.ProducerTest do
 
       Patiently.wait_for!(
         fn ->
-          with {:ok, 1, [%Elsa.Message{value: result}]} <- Elsa.fetch(@brokers, topic),
+          with {:ok, 1, [%Message{value: result}]} <- Elsa.fetch(@brokers, topic),
                true <- message == result,
-               {:ok, 1, [%Elsa.Message{value: result2}]} <- Elsa.fetch(@brokers, topic2),
+               {:ok, 1, [%Message{value: result2}]} <- Elsa.fetch(@brokers, topic2),
                true <- message2 == result2 do
             true
           else
@@ -84,7 +86,7 @@ defmodule Elsa.ProducerTest do
       connection = String.to_atom(topic)
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -132,7 +134,7 @@ defmodule Elsa.ProducerTest do
       :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -167,12 +169,10 @@ defmodule Elsa.ProducerTest do
   describe "partitioner functions" do
     test "produces to a topic partition randomly" do
       :ok = Elsa.create_topic(@brokers, "random-topic")
-      {:ok, topics} = Elsa.list_topics(@brokers)
-      Logger.info("topics: #{inspect(topics)}")
       connection = :elsa_test3
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "random-topic"])
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "random-topic"])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -192,7 +192,7 @@ defmodule Elsa.ProducerTest do
       connection = :elsa_test4
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "hashed-topic"])
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: "hashed-topic"])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -212,7 +212,7 @@ defmodule Elsa.ProducerTest do
       :ok = Elsa.create_topic(@brokers, topic)
 
       {:ok, supervisor} =
-        Elsa.ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
 
       on_exit(fn -> assert_down(supervisor) end)
 
@@ -237,7 +237,7 @@ defmodule Elsa.ProducerTest do
       :ok = Elsa.create_topic(@brokers, topic2)
 
       start_supervised(
-        {Elsa.ElsaSupervisor,
+        {ElsaSupervisor,
          endpoints: @brokers,
          connection: connection,
          group_consumer: [
@@ -248,7 +248,7 @@ defmodule Elsa.ProducerTest do
          ]}
       )
 
-      Elsa.ElsaSupervisor.start_producer(connection, topic: topic1)
+      ElsaSupervisor.start_producer(connection, topic: topic1)
 
       Producer.ready?(connection)
 
@@ -257,7 +257,7 @@ defmodule Elsa.ProducerTest do
       messages = retrieve_results(@brokers, topic1, 0, 0)
       assert {"key1", "value1"} in messages
 
-      Elsa.ElsaSupervisor.start_producer(connection, topic: topic2)
+      ElsaSupervisor.start_producer(connection, topic: topic2)
 
       patient_produce(connection, topic2, {"key2", "value2"}, [])
 
@@ -297,7 +297,7 @@ defmodule Elsa.ProducerTest do
   defp retrieve_results(endpoints, topic, partition, offset) do
     {:ok, {_count, messages}} = :brod.fetch(endpoints, topic, partition, offset)
 
-    Enum.map(messages, fn msg -> {Elsa.Message.kafka_message(msg, :key), Elsa.Message.kafka_message(msg, :value)} end)
+    Enum.map(messages, fn msg -> {Message.kafka_message(msg, :key), Message.kafka_message(msg, :value)} end)
   end
 end
 

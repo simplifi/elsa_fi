@@ -2,6 +2,8 @@ defmodule Elsa.Consumer.WorkerTest do
   use ExUnit.Case
   use Divo
 
+  alias Elsa.ElsaSupervisor
+
   require Logger
 
   @endpoints Application.compile_env(:elsa_fi, :brokers)
@@ -18,7 +20,7 @@ defmodule Elsa.Consumer.WorkerTest do
     )
 
     {:ok, pid} =
-      Elsa.ElsaSupervisor.start_link(
+      ElsaSupervisor.start_link(
         connection: :test_simple_consumer,
         endpoints: @endpoints,
         consumer: [
@@ -46,7 +48,7 @@ defmodule Elsa.Consumer.WorkerTest do
     )
 
     {:ok, pid} =
-      Elsa.ElsaSupervisor.start_link(
+      ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [
@@ -94,7 +96,7 @@ defmodule Elsa.Consumer.WorkerTest do
     connection = :test_simple_consumer_partition
 
     {:ok, pid} =
-      Elsa.ElsaSupervisor.start_link(
+      ElsaSupervisor.start_link(
         connection: connection,
         endpoints: @endpoints,
         consumer: [
@@ -133,7 +135,7 @@ defmodule Elsa.Consumer.WorkerTest do
     Elsa.produce(@endpoints, "specific-offset", {"2", "c"}, partition: 0)
 
     {:ok, pid} =
-      Elsa.ElsaSupervisor.start_link(
+      ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [
@@ -164,7 +166,7 @@ defmodule Elsa.Consumer.WorkerTest do
     Elsa.produce(@endpoints, "all-partitions", {"1", "b"}, partition: 1)
 
     {:ok, pid} =
-      Elsa.ElsaSupervisor.start_link(
+      ElsaSupervisor.start_link(
         connection: :test_simple_consumer_partition,
         endpoints: @endpoints,
         consumer: [

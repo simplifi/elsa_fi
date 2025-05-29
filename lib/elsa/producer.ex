@@ -24,85 +24,9 @@ defmodule Elsa.Producer do
   @type message :: {iodata(), iodata()} | binary() | %{key: iodata(), value: iodata()}
 
   alias Elsa.ElsaRegistry
+  alias Elsa.ElsaSupervisor
   alias Elsa.Util
 
-  @partition_count_tries 5
-
-  @spec produce(
-          atom() | [{atom() | binary(), pos_integer()}],
-          binary(),
-          binary()
-          | [
-              binary()
-              | maybe_improper_list(
-                  binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                  binary() | []
-                )
-              | {binary()
-                 | maybe_improper_list(
-                     binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                     binary() | []
-                   ),
-                 binary()
-                 | maybe_improper_list(
-                     binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                     binary() | []
-                   )}
-              | %{
-                  key:
-                    binary()
-                    | maybe_improper_list(
-                        binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                        binary() | []
-                      ),
-                  value:
-                    binary()
-                    | maybe_improper_list(
-                        binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                        binary() | []
-                      )
-                }
-            ]
-          | {binary()
-             | maybe_improper_list(
-                 binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                 binary() | []
-               ),
-             binary()
-             | maybe_improper_list(
-                 binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                 binary() | []
-               )}
-          | %{
-              key:
-                binary()
-                | maybe_improper_list(
-                    binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                    binary() | []
-                  ),
-              value:
-                binary()
-                | maybe_improper_list(
-                    binary() | maybe_improper_list(any(), binary() | []) | byte(),
-                    binary() | []
-                  )
-            }
-        ) ::
-          :ok
-          | {:error, any()}
-          | {:error, binary(),
-             [
-               %Elsa.Message{
-                 generation_id: nil | integer(),
-                 headers: list(),
-                 key: any(),
-                 offset: integer(),
-                 partition: non_neg_integer(),
-                 timestamp: any(),
-                 topic: binary(),
-                 value: any()
-               }
-             ]}
   @doc """
   Write the supplied message(s) to the desired topic/partition via an endpoint list and optional named client.
   If no client is supplied, the default named client is chosen.
@@ -117,7 +41,7 @@ defmodule Elsa.Producer do
 
   def produce(endpoints, topic, messages, opts) when is_list(endpoints) do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
-    registry = Elsa.ElsaSupervisor.registry(connection)
+    registry = ElsaSupervisor.registry(connection)
 
     _ =
       case Process.whereis(registry) do
@@ -141,14 +65,14 @@ defmodule Elsa.Producer do
   end
 
   def ready?(connection) do
-    registry = Elsa.ElsaSupervisor.registry(connection)
-    via = Elsa.ElsaSupervisor.via_name(registry, :producer_process_manager)
+    registry = ElsaSupervisor.registry(connection)
+    via = ElsaSupervisor.via_name(registry, :producer_process_manager)
     Elsa.DynamicProcessManager.ready?(via)
   end
 
   defp ad_hoc_produce(endpoints, connection, topic, messages, opts) do
     with {:ok, pid} <-
-           Elsa.ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
+           ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
       ready?(connection)
       _ = produce(connection, topic, messages, opts)
       Process.unlink(pid)
@@ -166,9 +90,7 @@ defmodule Elsa.Producer do
   defp transform_message(message), do: %{key: "", value: IO.iodata_to_binary(message)}
 
   defp do_produce_sync(connection, topic, messages, opts) do
-    Logger.info("Sync producing to #{topic}")
-
-    Elsa.Util.with_registry(connection, fn registry ->
+    Util.with_registry(connection, fn registry ->
       with {:ok, partitioner} <- get_partitioner(registry, topic, opts),
            message_chunks <- create_message_chunks(partitioner, messages),
            {:ok, _} <- produce_sync_while_successful(registry, topic, message_chunks) do
@@ -218,13 +140,12 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
-    Logger.info("Looking for partitioner in #{inspect(registry)}, #{inspect(topic)}, #{inspect(opts)}")
-    Elsa.Util.with_client(registry, fn client ->
+    Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
-          {:ok, partition_num} = get_partitions_count(client, topic, @partition_count_tries)
+          partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
-          {:ok, fn %{key: key} -> partitioner.partition(partition_num, key) end}
+          {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
 
         partition ->
           {:ok, fn _msg -> partition end}
@@ -233,19 +154,6 @@ defmodule Elsa.Producer do
   end
 
   @partitioners %{default: Elsa.Partitioner.Default, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
-
-  defp get_partitions_count(_client, _topic, 0) do
-    {:error, :out_of_tries}
-  end
-
-  defp get_partitions_count(client, topic, tries) do
-    case :brod_client.get_partitions_count(client, topic) do
-      {:ok, partition_num} -> {:ok, partition_num}
-      {:error, reason} ->
-        Logger.info("#{__MODULE__}: error #{reason}. retrying get_partitions count for #{topic}")
-        get_partitions_count(client, topic, tries - 1)
-    end
-  end
 
   defp remap_deprecated(key) when key in [:default, :md5, :random] do
     mod = Map.get(@partitioners, key)
