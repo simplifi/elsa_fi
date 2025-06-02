@@ -7,8 +7,6 @@ defmodule Elsa.Consumer.WorkerTest do
   require Logger
 
   @endpoints Application.compile_env(:elsa_fi, :brokers)
-  # Hack time for brod not working right if you don't give it a moment to initialize
-  @brod_init_sleep_ms 500
 
   test "simply consumes messages from configured topic/partition" do
     Patiently.wait_for!(
@@ -110,8 +108,6 @@ defmodule Elsa.Consumer.WorkerTest do
       )
 
     Patiently.wait_for(fn -> Elsa.Producer.ready?(connection) end)
-    :timer.sleep(@brod_init_sleep_ms)
-
     Elsa.produce(@endpoints, topic, {"2", "homerun"}, partition: 0)
 
     assert_receive [%Elsa.Message{value: "homerun"}], 5_000

@@ -3,8 +3,6 @@ defmodule Elsa.Group.SubscriberDeadTest do
   use Divo
 
   @brokers Application.compile_env(:elsa_fi, :brokers)
-  # Hack time for brod not working right if you don't give it a moment to initialize
-  @brod_init_sleep_ms 500
   @topic "dead-subscriber-topic"
 
   test "dead subscriber" do
@@ -22,8 +20,6 @@ defmodule Elsa.Group.SubscriberDeadTest do
           config: [begin_offset: :earliest]
         ]
       )
-
-    :timer.sleep(@brod_init_sleep_ms)
 
     send_messages(0, ["message1"])
     send_messages(1, ["message2"])
@@ -61,8 +57,6 @@ defmodule Elsa.Group.SubscriberDeadTest do
       :brod_client.stop_producer(:test_client, @topic)
       :brod.stop_client(:test_client)
     end)
-
-    :timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.each(fn msg ->
