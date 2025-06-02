@@ -29,7 +29,8 @@ defmodule Elsa.MixProject do
 
   defp deps do
     [
-      {:brod, "~> 4.4"},
+      # Normally this would just be ~> 4.4, but we want to make sure we have at least the bugfixes in 4.4.1.
+      {:brod, ">= 4.4.1 and < 5.0.0"},
       {:patiently, "~> 0.2", only: [:dev, :test, :integration]},
       {:divo, "~> 2.0", only: [:dev, :test, :integration], override: true},
       {:divo_kafka, "~> 1.0", only: [:dev, :test, :integration]},

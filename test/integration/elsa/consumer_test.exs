@@ -5,8 +5,6 @@ defmodule Elsa.ConsumerTest do
   require Logger
 
   @brokers Application.compile_env(:elsa_fi, :brokers)
-  # Hack time for brod not working right if you don't give it a moment to initialize
-  @brod_init_sleep_ms 500
 
   test "Elsa.Consumer will hand messages to the handler with state" do
     topic = "consumer-test1"
@@ -127,8 +125,6 @@ defmodule Elsa.ConsumerTest do
       :brod_client.stop_producer(:test_client, topic)
       :brod.stop_client(:test_client)
     end)
-
-    :timer.sleep(@brod_init_sleep_ms)
 
     messages
     |> Enum.with_index()
