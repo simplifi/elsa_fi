@@ -104,6 +104,10 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
         # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
         # so that it will restart reliably
         _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
+
+        # If terminate_child failed because the dynamic supervisor was dead, that can be safely ignored.
+        # Return :ok here from the if block so dialyzer doesn't get upset.
+        :ok
       else
         Logger.warn(
           "#{__MODULE__}: Attempted to stop :worker_dynamic_supervisor, but it does not exist under #{inspect(connection)}"
@@ -112,7 +116,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
       # Restart the dynamic supervisor
       if Keyword.get(options, :restart_supervisor, true) do
-        _ = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
+        {:ok, _pid} = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
       end
     end)
 
