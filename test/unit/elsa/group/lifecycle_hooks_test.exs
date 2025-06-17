@@ -32,13 +32,17 @@ defmodule Elsa.Group.LifecycleHooksTest do
         send(test_pid, :assignments_revoked)
         :ok
       end,
+      assignments_complete_handler: fn group, generation_id, result ->
+        send(test_pid, {:assignments_complete, group, generation_id, result})
+        :ok
+      end,
       generation_id: :generation_id
     }
 
     [state: state]
   end
 
-  test "assignments_recieved calls lifecycle hook", %{state: state} do
+  test "assignment_recieved/assignments_complete calls lifecycle hook", %{state: state} do
     with_mocks([
       {Elsa.ElsaRegistry, [], [whereis_name: fn _ -> :ack_pid end]},
       {Acknowledger, [], [update_generation_id: fn _, _ -> :ok end]}
@@ -53,6 +57,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
 
       assert_received {:assignment_received, "group1", "topic1", 0, :generation_id}
       assert_received {:assignment_received, "group1", "topic1", 1, :generation_id}
+      assert_received {:assignments_complete, "group1", :generation_id, :ok}
     end
   end
 

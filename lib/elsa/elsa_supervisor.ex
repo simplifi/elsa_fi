@@ -71,9 +71,14 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:handler_init_args` - Optional. Any args to be passed to init function in handler module.
 
-  * `:assignment_received_handler` - Optional. Arity 4 Function that will be called with any partition assignments.
+  * `:assignment_received_handler` - Optional. Arity 4 function that will be called with any partition assignments.
      Return `:ok` to for assignment to be subscribed to.  Return `{:error, reason}` to stop subscription.
      Arguments are group, topic, partition, generation_id.
+
+  * `assignments_complete_handler` - Optional.  Arity 3 function that will be called after each batch of partition assignments.
+    If subscription is successful, this function will be called after all workers are started with (group, generation_id, :ok).
+    If subscription is unsuccessful, this function will be called with (group, generation_id, {:error, reason}).
+    Must return `:ok`.
 
   * `:assignments_revoked_handler` - Optional. Zero arity function that will be called when assignments are revoked.
     All workers will be shutdown before callback is invoked and must return `:ok`.

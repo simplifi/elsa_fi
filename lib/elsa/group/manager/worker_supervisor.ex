@@ -3,7 +3,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   Provides functions to encapsulate the management of worker
   processes by the consumer group manager.
   """
-  use Supervisor, restart: :transient
+  use Supervisor
 
   import Record, only: [defrecord: 2, extract: 2]
   import Elsa.ElsaSupervisor, only: [registry: 1]
@@ -46,7 +46,11 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
     children = [
       {DynamicSupervisor,
-       [id: :worker_dynamic_supervisor, name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}}]}
+       [
+         id: :worker_dynamic_supervisor,
+         name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}},
+         restart: :transient
+       ]}
     ]
 
     Supervisor.init(children,
@@ -81,7 +85,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     workers
     |> Map.values()
     |> Enum.each(fn worker ->
-      Logger.info("Gracefully stopping group worker #{inspect(worker)}")
+      Logger.info("#{__MODULE__}: Gracefully stopping group worker #{inspect(worker)}")
       Process.demonitor(worker.ref)
     end)
 
@@ -92,12 +96,18 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       # This is the DynamicSupervisor created in init
       dynamic_worker_supervisor = ElsaRegistry.whereis_name({registry, :worker_dynamic_supervisor})
 
-      # Synchronously stops the DynamicSupervisor and its children
-      DynamicSupervisor.stop(dynamic_worker_supervisor)
+      if dynamic_worker_supervisor != :undefined do
+        # Synchronously stops the DynamicSupervisor and its children
+        DynamicSupervisor.stop(dynamic_worker_supervisor)
 
-      # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
-      # so that it will restart reliably
-      _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
+        # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
+        # so that it will restart reliably
+        _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
+      else
+        Logger.warn(
+          "#{__MODULE__}: Attempted to stop :worker_dynamic_supervisor, but it does not exist under #{inspect(connection)}"
+        )
+      end
 
       # Restart the dynamic supervisor
       if Keyword.get(options, :restart_supervisor, true) do
