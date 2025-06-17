@@ -45,12 +45,13 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     connection = Keyword.fetch!(opts, :connection)
 
     children = [
-      {DynamicSupervisor,
-       [
-         id: :worker_dynamic_supervisor,
-         name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}},
-         restart: :transient
-       ]}
+      %{
+        id: :worker_dynamic_supervisor,
+        start:
+          {DynamicSupervisor, :start_link,
+           [[name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}}]]},
+        restart: :transient
+      }
     ]
 
     Supervisor.init(children,
