@@ -42,7 +42,7 @@ defmodule Elsa.Group.LifecycleHooksTest do
     [state: state]
   end
 
-  test "assignment_recieved/assignments_complete calls lifecycle hook", %{state: state} do
+  test "assignment_received/assignments_complete calls lifecycle hook", %{state: state} do
     with_mocks([
       {Elsa.ElsaRegistry, [], [whereis_name: fn _ -> :ack_pid end]},
       {Acknowledger, [], [update_generation_id: fn _, _ -> :ok end]}
