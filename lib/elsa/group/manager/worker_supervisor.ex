@@ -20,6 +20,10 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 
+  # ID used for the underlying DynamicSupervisor.
+  # Defined as a module attribute to avoid typo bugs.
+  @dynamic_supervisor_id :worker_dynamic_supervisor
+
   defmodule WorkerState do
     @moduledoc """
     Tracks the running state of the worker process from the perspective of the group manager.
@@ -42,14 +46,10 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   @impl true
   @spec init(keyword()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
   def init(opts) do
-    connection = Keyword.fetch!(opts, :connection)
-
     children = [
       %{
-        id: :worker_dynamic_supervisor,
-        start:
-          {DynamicSupervisor, :start_link,
-           [[name: {:via, ElsaRegistry, {registry(connection), :worker_dynamic_supervisor}}]]},
+        id: @dynamic_supervisor_id,
+        start: {DynamicSupervisor, :start_link, [[]]},
         restart: :transient
       }
     ]
@@ -82,6 +82,8 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
   """
   @spec stop_all_workers(Elsa.connection(), map(), list()) :: map()
   def stop_all_workers(connection, workers, options \\ []) do
+    Logger.info("Stopping all workers for #{inspect(connection)}")
+
     # Demonitor all the workers, so that our client doesn't get a bunch of :EXIT signals
     workers
     |> Map.values()
@@ -90,35 +92,27 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       Process.demonitor(worker.ref)
     end)
 
-    # Stop the dynamic supervisor in , which will in turn stop all of the children
-    Util.with_registry(connection, fn registry ->
-      # This is the Supervisor created in start_link, for this specific connection.
-      module_supervisor = ElsaRegistry.whereis_name({registry, __MODULE__})
-      # This is the DynamicSupervisor created in init
-      dynamic_worker_supervisor = ElsaRegistry.whereis_name({registry, :worker_dynamic_supervisor})
+    module_supervisor = get_worker_supervisor(connection)
 
-      if dynamic_worker_supervisor != :undefined do
-        # Synchronously stops the DynamicSupervisor and its children
-        DynamicSupervisor.stop(dynamic_worker_supervisor)
+    dynamic_worker_supervisor = get_dynamic_supervisor(module_supervisor)
 
-        # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
-        # so that it will restart reliably
-        _ = Supervisor.terminate_child(module_supervisor, :worker_dynamic_supervisor)
+    if dynamic_worker_supervisor != :undefined do
+      # Synchronously stops the DynamicSupervisor and its children
+      DynamicSupervisor.stop(dynamic_worker_supervisor)
+    else
+      Logger.warning(
+        "#{__MODULE__}: Attempted to stop #{@dynamic_supervisor_id}, but it does not exist under Supervisor #{inspect(module_supervisor)}"
+      )
+    end
 
-        # If terminate_child failed because the dynamic supervisor was dead, that can be safely ignored.
-        # Return :ok here from the if block so dialyzer doesn't get upset.
-        :ok
-      else
-        Logger.warn(
-          "#{__MODULE__}: Attempted to stop :worker_dynamic_supervisor, but it does not exist under #{inspect(connection)}"
-        )
-      end
+    # Make sure the DynamicSupervisor itself is truly cleaned up from the Supervisor's perspective,
+    # so that it will restart reliably
+    :ok = Supervisor.terminate_child(module_supervisor, @dynamic_supervisor_id)
 
-      # Restart the dynamic supervisor
-      if Keyword.get(options, :restart_supervisor, true) do
-        {:ok, _pid} = Supervisor.restart_child(module_supervisor, :worker_dynamic_supervisor)
-      end
-    end)
+    # Restart the dynamic supervisor
+    if Keyword.get(options, :restart_supervisor, true) do
+      {:ok, _pid} = Supervisor.restart_child(module_supervisor, @dynamic_supervisor_id)
+    end
 
     %{}
   end
@@ -179,8 +173,9 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
       )
     end
 
-    supervisor = {:via, ElsaRegistry, {registry(state.connection), :worker_dynamic_supervisor}}
-    {:ok, worker_pid} = DynamicSupervisor.start_child(supervisor, {Worker, init_args})
+    dynamic_supervisor = get_dynamic_supervisor(get_worker_supervisor(state.connection))
+
+    {:ok, worker_pid} = DynamicSupervisor.start_child(dynamic_supervisor, {Worker, init_args})
     ref = Process.monitor(worker_pid)
 
     new_worker = %WorkerState{
@@ -201,5 +196,16 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     workers
     |> Map.values()
     |> Enum.find(fn worker -> worker.ref == ref end)
+  end
+
+  defp get_worker_supervisor(connection) do
+    Util.with_registry(connection, fn registry ->
+      ElsaRegistry.whereis_name({registry, __MODULE__})
+    end)
+  end
+
+  defp get_dynamic_supervisor(worker_supervisor_pid) do
+    [{@dynamic_supervisor_id, dynamic_worker_supervisor, _, _}] = Supervisor.which_children(worker_supervisor_pid)
+    dynamic_worker_supervisor
   end
 end
