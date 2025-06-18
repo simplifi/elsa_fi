@@ -112,6 +112,7 @@ defmodule Elsa.Group.Manager.WorkerSupervisor do
     # Restart the dynamic supervisor
     if Keyword.get(options, :restart_supervisor, true) do
       {:ok, _pid} = Supervisor.restart_child(module_supervisor, @dynamic_supervisor_id)
+      :ok
     end
 
     %{}
