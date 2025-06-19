@@ -6,5 +6,5 @@ config :elsa_fi,
   divo_wait: [dwell: 700, max_tries: 50]
 
 config :logger,
-  handle_sasl_reports: false,
+  handle_sasl_reports: true,
   level: :warn

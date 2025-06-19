@@ -71,16 +71,28 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:handler_init_args` - Optional. Any args to be passed to init function in handler module.
 
-  * `:assignment_received_handler` - Optional. Arity 4 Function that will be called with any partition assignments.
-     Return `:ok` to for assignment to be subscribed to.  Return `{:error, reason}` to stop subscription.
-     Arguments are group, topic, partition, generation_id.
+  * `:assignment_received_handler` - Optional. Will be called with any partition assignments.
+    See `t:Elsa.Group.Manager.assignment_received_handler/0` for expected function arity and types.
 
-  * `:assignments_revoked_handler` - Optional. Zero arity function that will be called when assignments are revoked.
-    All workers will be shutdown before callback is invoked and must return `:ok`.
+    This function will be called once per assignment with arguments (group, topic, partition, generation_id).
+
+    Return `:ok` to allow subscription to the current assignment.  Return `{:error, reason}` to stop subscription.
+
+  * `:assignments_complete_handler` - Optional.  Will be called after each batch of partition assignments.
+    See `t:Elsa.Group.Manager.assignments_complete_handler/0` for expected function arity and types.
+
+    If subscription is successful, this function will be called after all workers are started with (group, generation_id, :ok).
+
+    If subscription is unsuccessful, this function will be called with (group, generation_id, {:error, reason}).
+
+  * `:assignments_revoked_handler` - Optional. Will be called when assignments are revoked.
+    See `t:Elsa.Group.Manager.assignments_revoked_handler/0` for expected function arity and types.
+
+    All workers will be shut down before this function is called.
 
   * `:worker_supervisor_max_restarts` - Optional. max_restarts option passed to the WorkerSupervisor.  Default 30.
 
-  # `:worker_supervisor_max_seconds` - Optional. max_seconds option passed to the WorkerSupervisor.  Default 5.
+  * `:worker_supervisor_max_seconds` - Optional. max_seconds option passed to the WorkerSupervisor.  Default 5 seconds.
 
   * `:config` - Optional. Consumer configuration options passed to `brod_consumer`.
 

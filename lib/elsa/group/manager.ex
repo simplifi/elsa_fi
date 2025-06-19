@@ -28,6 +28,10 @@ defmodule Elsa.Group.Manager do
   @type assignment_received_handler ::
           (group(), Elsa.topic(), Elsa.partition(), generation_id() -> :ok | {:error, term()})
 
+  @typedoc "Function called each time a batch of assignments is complete"
+  @type assignments_complete_handler ::
+          (group(), generation_id(), :ok | {:error, term()} -> :ok)
+
   @typedoc "Function called for when assignments have been revoked"
   @type assignments_revoked_handler :: (() -> :ok)
 
@@ -75,6 +79,7 @@ defmodule Elsa.Group.Manager do
           topics: [Elsa.topic()],
           assignment_received_handler: assignment_received_handler(),
           assignments_revoked_handler: assignments_revoked_handler(),
+          assignments_complete_handler: assignments_complete_handler(),
           handler: handler(),
           handler_init_args: term(),
           config: consumer_config()
@@ -95,6 +100,7 @@ defmodule Elsa.Group.Manager do
       :group_coordinator_pid,
       :acknowledger_pid,
       :assignment_received_handler,
+      :assignments_complete_handler,
       :assignments_revoked_handler,
       :start_time,
       :delay,
@@ -150,6 +156,7 @@ defmodule Elsa.Group.Manager do
       topics: Keyword.fetch!(opts, :topics),
       supervisor_pid: Keyword.fetch!(opts, :supervisor_pid),
       assignment_received_handler: Keyword.get(opts, :assignment_received_handler, fn _g, _t, _p, _gen -> :ok end),
+      assignments_complete_handler: Keyword.get(opts, :assignments_complete_handler, fn _g, _gen, _res -> :ok end),
       assignments_revoked_handler: Keyword.get(opts, :assignments_revoked_handler, fn -> :ok end),
       start_time: :erlang.system_time(:milli_seconds),
       delay: Keyword.get(opts, :delay, @default_delay),
@@ -175,19 +182,27 @@ defmodule Elsa.Group.Manager do
   def handle_call({:process_assignments, _member_id, generation_id, assignments}, _from, state) do
     Logger.debug(fn -> "#{__MODULE__}: process assignments #{inspect(assignments)}" end)
 
-    case call_lifecycle_assignment_received(state, assignments, generation_id) do
-      {:error, reason} ->
-        {:stop, reason, {:error, reason}, state}
+    result = call_lifecycle_assignment_received(state, assignments, generation_id)
 
-      :ok ->
-        Acknowledger.update_generation_id(
-          {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
-          generation_id
-        )
+    call_return =
+      case result do
+        {:error, reason} ->
+          {:stop, reason, {:error, reason}, state}
 
-        new_workers = start_workers(state, generation_id, assignments)
-        {:reply, :ok, %{state | workers: new_workers, generation_id: generation_id}}
-    end
+        :ok ->
+          Acknowledger.update_generation_id(
+            {:via, ElsaRegistry, {registry(state.connection), Acknowledger}},
+            generation_id
+          )
+
+          new_workers = start_workers(state, generation_id, assignments)
+
+          {:reply, :ok, %{state | workers: new_workers, generation_id: generation_id}}
+      end
+
+    apply(state.assignments_complete_handler, [state.group, generation_id, result])
+
+    call_return
   end
 
   def handle_call(:revoke_assignments, _from, state) do
@@ -214,7 +229,7 @@ defmodule Elsa.Group.Manager do
   end
 
   def terminate(reason, state) do
-    Logger.debug(fn -> "#{__MODULE__} : Terminating #{state.connection}" end)
+    Logger.debug(fn -> "#{__MODULE__} : Terminating #{state.connection}, reason: #{inspect(reason)}" end)
     _ = WorkerSupervisor.stop_all_workers(state.connection, state.workers, restart_supervisor: false)
 
     shutdown_and_wait(state.acknowledger_pid)
