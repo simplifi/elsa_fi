@@ -34,7 +34,7 @@ defmodule Elsa.ProducerTest do
         assert_down(supervisor)
       end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       [connection: connection, topics: [topic, topic2], registry: ElsaSupervisor.registry(connection)]
     end
@@ -57,7 +57,7 @@ defmodule Elsa.ProducerTest do
         max_tries: 30
       )
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       Producer.produce(connection, topic, message)
       Producer.produce(connection, topic2, message2)
@@ -90,7 +90,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       patient_produce(connection, topic, messages, produce_opts)
 
@@ -138,7 +138,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       messages = [
         %{key: "key1", value: "value1", headers: [{"header1", "one"}, {"header2", "two"}]},
@@ -176,7 +176,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       patient_produce(connection, "random-topic", [{"key1", "value1"}, {"key2", "value2"}],
         partitioner: Elsa.Partitioner.Random
@@ -196,7 +196,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       patient_produce(connection, "hashed-topic", {"key", "value"}, partitioner: Elsa.Partitioner.Md5)
 
@@ -216,7 +216,7 @@ defmodule Elsa.ProducerTest do
 
       on_exit(fn -> assert_down(supervisor) end)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       patient_produce(connection, topic, {"key", "value"}, partitioner: :default)
 
@@ -250,7 +250,7 @@ defmodule Elsa.ProducerTest do
 
       ElsaSupervisor.start_producer(connection, topic: topic1)
 
-      Producer.ready?(connection)
+      Producer.wait_ready!(connection)
 
       patient_produce(connection, topic1, {"key1", "value1"}, [])
 
