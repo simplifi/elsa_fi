@@ -107,7 +107,7 @@ defmodule Elsa.Consumer.WorkerTest do
         ]
       )
 
-    Patiently.wait_for(fn -> Elsa.Producer.wait_ready!(connection) end)
+    Patiently.wait_for(fn -> Elsa.Producer.wait_ready(connection) end)
     Elsa.produce(@endpoints, topic, {"2", "homerun"}, partition: 0)
 
     assert_receive [%Elsa.Message{value: "homerun"}], 5_000

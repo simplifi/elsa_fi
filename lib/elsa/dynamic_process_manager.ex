@@ -23,7 +23,7 @@ defmodule Elsa.DynamicProcessManager do
     }
   end
 
-  def wait_ready!(server, timeout \\ 10_000) do
+  def wait_ready(server, timeout \\ 10_000) do
     GenServer.call(server, :ready?, timeout)
   end
 

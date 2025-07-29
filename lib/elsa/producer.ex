@@ -65,22 +65,22 @@ defmodule Elsa.Producer do
   end
 
   @doc "Waits until the Producer's underlying GenServer has completed its initialization and is responding to messages."
-  def wait_ready!(connection, timeout \\ 10_000) do
+  def wait_ready(connection, timeout \\ 10_000) do
     registry = ElsaSupervisor.registry(connection)
     via = ElsaSupervisor.via_name(registry, :producer_process_manager)
-    Elsa.DynamicProcessManager.wait_ready!(via, timeout)
+    Elsa.DynamicProcessManager.wait_ready(via, timeout)
   end
 
-  @doc "deprecated"
+  @doc "Deprecated.  Please use wait_ready instead."
   def ready?(connection) do
-    wait_ready!(connection)
+    wait_ready(connection)
     true
   end
 
   defp ad_hoc_produce(endpoints, connection, topic, messages, opts) do
     with {:ok, pid} <-
            ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
-      wait_ready!(connection)
+      wait_ready(connection)
       _ = produce(connection, topic, messages, opts)
       Process.unlink(pid)
       Supervisor.stop(pid)
