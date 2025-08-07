@@ -85,7 +85,7 @@ defmodule DynamicProcessManagerTest do
         poll: 1_000
       })
 
-    DynamicProcessManager.ready?(pm)
+    DynamicProcessManager.wait_ready(pm)
 
     assert true == alive?(:agent1)
     assert 1 == Agent.get(:agent1, fn s -> s end)
