@@ -35,8 +35,21 @@ defmodule Elsa.ElsaRegistry do
   @spec whereis_name({atom(), term()}) :: pid() | :undefined
   def whereis_name({registry, key}) do
     case :ets.lookup(registry, key) do
-      [{^key, pid}] -> pid
-      [] -> :undefined
+      [{^key, pid}] ->
+        # The process was found in the registry, but an additional Process.alive? check is still necessary.
+        # Otherwise there's a window of opportunity between when the process dies,
+        # and when the registry receives the EXIT message to remove the key from ETS.
+        if Process.alive?(pid) do
+          # Process was found in the registry and is alive
+          pid
+        else
+          # Process was found in the registry, but it's dead
+          :undefined
+        end
+
+      [] ->
+        # Process was not found in the registry
+        :undefined
     end
   end
 

@@ -140,11 +140,14 @@ defmodule Elsa.DynamicProcessManager do
   end
 
   defp whereis({:via, registry_module, lookup}) do
-    registry_module.whereis_name(lookup)
+    case registry_module.whereis_name(lookup) do
+      :undefined -> nil
+      pid -> pid
+    end
   end
 
   defp wait_for(name) do
-    case Process.whereis(name) do
+    case whereis(name) do
       nil ->
         Process.sleep(200)
         wait_for(name)
