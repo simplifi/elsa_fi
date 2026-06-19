@@ -5,6 +5,36 @@ defmodule Elsa.Consumer.Worker do
   and process messages according to the specified message handler module
   passed in from the manager before calling the ack function to
   notify the cluster the messages have been successfully processed.
+
+  ## Self-healing on `offset_out_of_range`
+
+  Under brod's default `offset_reset_policy: reset_by_subscriber`, when a
+  committed offset falls outside the available log (topic recreated, retention
+  truncation, cluster cutover), brod casts a `kafka_fetch_error` with
+  `error_code: :offset_out_of_range` and suspends fetching. The worker handles
+  this by **re-subscribing in place** at `config[:begin_offset]` (default
+  `:latest`), which un-suspends brod and resumes consumption without a process
+  restart.
+
+  Because the reset jumps to the policy target, **messages between the stale
+  committed offset and the reset target may be skipped**. Callers running
+  non-idempotent handlers should be aware that a reset can cause records to be
+  dropped (with `:latest`) — and conversely, replay/double-processing is
+  possible if you choose `:earliest`. Callers needing replay should set
+  `begin_offset: :earliest` and design their handlers to tolerate reprocessing.
+
+  This self-heal only applies under `reset_by_subscriber`. With the `:reset_to_latest`
+  / `:reset_to_earliest` policies brod resets internally and never casts the error,
+  so the worker's `offset_out_of_range` clause never fires.
+
+  If re-subscribe fails after exhausting retries, the worker stops with
+  `{:resubscribe_failed, reason}` (fail loud — never silently stall). Group
+  consumers recover via `Elsa.Group.Manager`'s monitor, which restarts the
+  worker. **Simple consumers (`Elsa.Consumer.Worker.Initializer`) are
+  `restart: :temporary` with no monitor, so a stopped worker is not restarted
+  automatically — they require external supervision.** This is an accepted,
+  documented limitation: the in-place re-subscribe happy path is what protects
+  simple consumers; the `:stop` is only the failure path.
   """
   use GenServer, restart: :temporary, shutdown: 10_000
 
@@ -17,6 +47,7 @@ defmodule Elsa.Consumer.Worker do
   require Logger
 
   defrecord :kafka_message_set, extract(:kafka_message_set, from_lib: "brod/include/brod.hrl")
+  defrecord :kafka_fetch_error, extract(:kafka_fetch_error, from_lib: "brod/include/brod.hrl")
 
   @subscribe_delay 200
   @subscribe_retries 20
@@ -126,6 +157,38 @@ defmodule Elsa.Consumer.Worker do
     end
   end
 
+  def handle_info({consumer_pid, kafka_fetch_error(error_code: :offset_out_of_range)}, state)
+      when consumer_pid == state.consumer_pid do
+    Logger.warning(
+      "Offset out of range for #{state.topic}/#{state.partition} " <>
+        "(was #{inspect(state.offset)}); resetting to " <>
+        "#{inspect(Keyword.get(state.config, :begin_offset, :latest))} per policy and re-subscribing"
+    )
+
+    # :undefined makes determine_subscriber_opts/1 fall back to config begin_offset.
+    new_state = %{state | offset: :undefined}
+
+    case subscribe(consumer_pid, new_state) do
+      :ok ->
+        {:noreply, new_state}
+
+      {:error, reason} ->
+        {:stop, {:resubscribe_failed, reason}, state}
+    end
+  end
+
+  def handle_info(
+        {consumer_pid, kafka_fetch_error(error_code: code, error_desc: desc)},
+        state
+      )
+      when consumer_pid == state.consumer_pid do
+    Logger.error("Unhandled kafka_fetch_error #{inspect(code)} for #{state.topic}/#{state.partition}: #{inspect(desc)}")
+
+    # For these codes brod stops the (linked) consumer, so the worker then stops
+    # via the {:EXIT, ...} clause below; this {:noreply, state} just logs first.
+    {:noreply, state}
+  end
+
   def handle_info({:EXIT, _pid, reason}, state) do
     {:stop, reason, state}
   end
@@ -162,13 +225,16 @@ defmodule Elsa.Consumer.Worker do
     :brod_consumer.start_link(brod_client, topic, partition, config)
   end
 
-  defp subscribe(consumer_pid, state, retries \\ @subscribe_retries)
+  defp subscribe(consumer_pid, state) do
+    retries = Keyword.get(state.config, :subscribe_retries, @subscribe_retries)
+    do_subscribe(consumer_pid, state, retries)
+  end
 
-  defp subscribe(_consumer_pid, _state, 0) do
+  defp do_subscribe(_consumer_pid, _state, 0) do
     {:error, :failed_subscription}
   end
 
-  defp subscribe(consumer_pid, state, retries) do
+  defp do_subscribe(consumer_pid, state, retries) do
     opts = determine_subscriber_opts(state)
 
     case :brod_consumer.subscribe(consumer_pid, self(), opts) do
@@ -177,8 +243,8 @@ defmodule Elsa.Consumer.Worker do
           "Retrying to subscribe to topic #{state.topic} parition #{state.partition} offset #{state.offset} reason #{inspect(reason)}"
         )
 
-        Process.sleep(@subscribe_delay)
-        subscribe(consumer_pid, state, retries - 1)
+        Process.sleep(Keyword.get(state.config, :subscribe_delay, @subscribe_delay))
+        do_subscribe(consumer_pid, state, retries - 1)
 
       :ok ->
         Logger.info("Subscribing to topic #{state.topic} partition #{state.partition} offset #{state.offset}")
