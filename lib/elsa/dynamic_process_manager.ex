@@ -117,13 +117,17 @@ defmodule Elsa.DynamicProcessManager do
     initializer.()
   rescue
     e ->
-      Logger.warn(fn -> "#{__MODULE__}: initializer raised exception, retrying: #{inspect(e)}" end)
+      Logger.warn(fn ->
+        "#{__MODULE__}: initializer #{inspect(initializer)} raised exception, retrying: #{Exception.format(:error, e, __STACKTRACE__)}"
+      end)
 
       Process.sleep(1_000)
       initialize_until_success(initializer)
   catch
     :exit, e ->
-      Logger.warn(fn -> "#{__MODULE__}: initializer raised exception, retrying: #{inspect(e)}" end)
+      Logger.warn(fn ->
+        "#{__MODULE__}: initializer #{inspect(initializer)} raised exception, retrying: #{Exception.format(:error, e, __STACKTRACE__)}"
+      end)
 
       Process.sleep(1_000)
       initialize_until_success(initializer)
