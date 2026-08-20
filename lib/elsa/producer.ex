@@ -5,7 +5,7 @@ defmodule Elsa.Producer do
   Defines functions to write messages to topics based on either a list of endpoints or a named client.
   All produce functions support the following options:
     * An existing named client process to handle the request can be specified by the keyword option `connection:`.
-    * If no partition is supplied, the first (zero) partition is chosen.
+    * If no partition is supplied, a partition is chosen at random.
     * Value may be a single message or a list of messages.
     * If a list of messages is supplied as the value, the key is defaulted to an empty string binary.
     * Partition can be specified by the keyword option `partition:` and an integer corresponding to a specific
@@ -151,7 +151,7 @@ defmodule Elsa.Producer do
       case Keyword.get(opts, :partition) do
         nil ->
           partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
-          partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
+          partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
           {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
 
         partition ->
