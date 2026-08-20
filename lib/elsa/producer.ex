@@ -160,7 +160,7 @@ defmodule Elsa.Producer do
     end)
   end
 
-  @partitioners %{default: Elsa.Partitioner.Default, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
+  @partitioners %{default: Elsa.Partitioner.Zero, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
 
   defp remap_deprecated(key) when key in [:default, :md5, :random] do
     mod = Map.get(@partitioners, key)

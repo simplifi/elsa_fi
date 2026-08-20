@@ -1,9 +1,7 @@
 defmodule Elsa.Partitioner.Default do
-  @moduledoc """
-  Defaults partition to 0.
-  """
+  @moduledoc deprecated: "Use Elsa.Partitioner.Zero instead."
 
   @behaviour Elsa.Partitioner
 
-  def partition(_count, _key), do: 0
+  def partition(count, key), do: Elsa.Partitioner.Zero.partition(count, key)
 end
