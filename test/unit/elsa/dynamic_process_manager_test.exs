@@ -99,6 +99,29 @@ defmodule DynamicProcessManagerTest do
     assert 2 == Agent.get(:agent2, fn s -> s end)
   end
 
+  test "can reconcile new children without polling" do
+    Agent.start_link(fn -> 1 end, name: :retry_counter)
+    start_supervised({DynamicSupervisor, strategy: :one_for_one, name: :dyn_sup})
+
+    {:ok, pm} =
+      start_supervised({
+        DynamicProcessManager,
+        id: :pm,
+        name: :pm,
+        dynamic_supervisor: :dyn_sup,
+        initializer: {PollingInitializer, :initialize, []}
+      })
+
+    DynamicProcessManager.wait_ready(pm)
+
+    assert true == alive?(:agent1)
+    assert false == alive?(:agent2)
+
+    assert :ok == DynamicProcessManager.reconcile(pm)
+    assert true == alive?(:agent2)
+    assert 2 == Agent.get(:agent2, fn s -> s end)
+  end
+
   def alive?(name) when is_atom(name) do
     case Process.whereis(name) do
       nil -> false
