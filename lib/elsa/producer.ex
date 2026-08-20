@@ -147,36 +147,17 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
-    process_manager = ElsaSupervisor.via_name(registry, :producer_process_manager)
-    manager_started? = Elsa.ElsaRegistry.whereis_name({registry, :producer_process_manager}) != :undefined
-
     Util.with_client(registry, fn client ->
       case Keyword.get(opts, :partition) do
         nil ->
           partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
-          reconcile_if_workers_missing(process_manager, registry, topic, 0..(partition_count - 1), manager_started?)
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
           {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
 
         partition ->
-          reconcile_if_workers_missing(process_manager, registry, topic, [partition], manager_started?)
           {:ok, fn _msg -> partition end}
       end
     end)
-  end
-
-  defp reconcile_if_workers_missing(_process_manager, _registry, _topic, _partitions, false), do: :ok
-
-  defp reconcile_if_workers_missing(process_manager, registry, topic, partitions, true) do
-    if Enum.any?(partitions, &worker_missing?(registry, topic, &1)) do
-      Elsa.DynamicProcessManager.reconcile(process_manager)
-    end
-
-    :ok
-  end
-
-  defp worker_missing?(registry, topic, partition) do
-    Elsa.ElsaRegistry.whereis_name({registry, :"producer_#{topic}_#{partition}"}) == :undefined
   end
 
   @partitioners %{default: Elsa.Partitioner.Default, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}

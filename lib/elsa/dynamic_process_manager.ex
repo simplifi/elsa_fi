@@ -9,10 +9,6 @@ defmodule Elsa.DynamicProcessManager do
     GenServer.call(server, {:start_child, child_spec})
   end
 
-  def reconcile(server) do
-    GenServer.call(server, :reconcile)
-  end
-
   def start_link(init_arg) do
     server_opts = Keyword.take(init_arg, [:name])
     GenServer.start_link(__MODULE__, init_arg, server_opts)
@@ -71,10 +67,6 @@ defmodule Elsa.DynamicProcessManager do
   def handle_call({:start_child, child}, _from, state) do
     output = DynamicSupervisor.start_child(state.dynamic_supervisor, child)
     {:reply, output, Map.update!(state, :child_specs, fn specs -> specs ++ [child] end)}
-  end
-
-  def handle_call(:reconcile, _from, state) do
-    {:reply, :ok, start_new_children(state)}
   end
 
   # When handle_continue has completed this process can

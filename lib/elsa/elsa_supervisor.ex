@@ -54,7 +54,7 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:topic` - Required. Producer will be started for configured topic.
 
-  * `:poll` - Optional. If set to a number in milliseconds, will poll for new partitions and startup producers on the fly.
+  * `:poll` - Optional. Poll interval in milliseconds for discovering new partitions and starting producers on the fly. Defaults to 1_000.
 
   * `:config` - Optional. Producer configuration options passed to `brod_producer`.
 
@@ -267,7 +267,7 @@ defmodule Elsa.ElsaSupervisor do
         id: :producer_process_manager,
         dynamic_supervisor: dynamic_supervisor(registry),
         initializer: {Elsa.Producer.Initializer, :init, [registry, args]},
-        poll: Keyword.get(args, :poll, false),
+        poll: Keyword.get(args, :poll, 1_000),
         name: via_name(registry, :producer_process_manager)
       }
     ]
