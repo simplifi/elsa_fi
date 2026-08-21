@@ -9,9 +9,8 @@ defmodule Elsa.Producer do
     * Value may be a single message or a list of messages.
     * If a list of messages is supplied as the value, the key is defaulted to an empty string binary.
     * Partition can be specified by the keyword option `partition:` and an integer corresponding to a specific
-      partition, or the keyword option `partitioner:` and the atoms `:md5` or `:random`. The atoms
-      correspond to partitioner functions that will uniformely select a random partition
-      from the total available topic partitions or assign an integer based on an md5 hash of the messages.
+      partition, or the keyword option `partitioner:` and an `Elsa.Partitioner` module such as
+      `Elsa.Partitioner.Zero`, `Elsa.Partitioner.Md5`, or `Elsa.Partitioner.Random`.
   """
 
   @typedoc """
@@ -152,7 +151,8 @@ defmodule Elsa.Producer do
         nil ->
           partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
           partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
-          {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
+
+          partitioner_result(partitioner, partition_count)
 
         partition ->
           {:ok, fn _msg -> partition end}
@@ -160,15 +160,26 @@ defmodule Elsa.Producer do
     end)
   end
 
-  @partitioners %{default: Elsa.Partitioner.Zero, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
-
-  defp remap_deprecated(key) when key in [:default, :md5, :random] do
-    mod = Map.get(@partitioners, key)
-    Logger.warn(fn -> ":#{key} partitioner is deprecated. Use #{mod} instead." end)
+  defp remap_deprecated(Elsa.Partitioner.Default) do
+    mod = Elsa.Partitioner.Zero
+    Logger.warn(fn -> "#{inspect(Elsa.Partitioner.Default)} is deprecated. Use #{inspect(mod)} instead." end)
     mod
   end
 
   defp remap_deprecated(key), do: key
+
+  defp partitioner_result(partitioner, partition_count)
+       when is_atom(partitioner) do
+    if Code.ensure_loaded?(partitioner) and function_exported?(partitioner, :partition, 2) do
+      {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
+    else
+      {:error, "invalid partitioner #{inspect(partitioner)}. Use an Elsa.Partitioner module."}
+    end
+  end
+
+  defp partitioner_result(partitioner, _partition_count) do
+    {:error, "invalid partitioner #{inspect(partitioner)}. Use an Elsa.Partitioner module."}
+  end
 
   defp brod_produce(registry, topic, partition, messages) do
     producer = :"producer_#{topic}_#{partition}"

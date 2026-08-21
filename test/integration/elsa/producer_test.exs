@@ -2,6 +2,7 @@ defmodule Elsa.ProducerTest do
   use ExUnit.Case
   use Divo
   import Checkov
+  import ExUnit.CaptureLog
   import TestHelper
 
   alias Elsa.ElsaSupervisor
@@ -157,7 +158,7 @@ defmodule Elsa.ProducerTest do
     test "produces to the specified topic with no prior broker" do
       :ok = Elsa.create_topic(@brokers, "producer-topic3")
 
-      iolist_message = [<<0, 0, 0, 0, 10>>, [[20], [[[[0], ['H', "id-token"]]]]]]
+      iolist_message = [<<0, 0, 0, 0, 10>>, [[20], [[[[0], [~c"H", "id-token"]]]]]]
       Producer.produce(@brokers, "producer-topic3", [{"key1", "value1"}, {"key2", iolist_message}], partition: 0)
 
       parsed_messages = retrieve_results(@brokers, "producer-topic3", 0, 0)
@@ -205,7 +206,32 @@ defmodule Elsa.ProducerTest do
       assert [{"key", "value"}] == parsed_messages
     end
 
-    test "are backwards compatible with the old naming scheme" do
+    test "supports the default partitioner module with a deprecation warning" do
+      topic = "default-module-topic"
+      connection = :elsa_test_default_partitioner_module
+
+      :ok = Elsa.create_topic(@brokers, topic)
+
+      {:ok, supervisor} =
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+
+      on_exit(fn -> assert_down(supervisor) end)
+
+      Producer.wait_ready(connection)
+
+      log =
+        capture_log(fn ->
+          patient_produce(connection, topic, {"key", "value"}, partitioner: Elsa.Partitioner.Default)
+        end)
+
+      parsed_messages = retrieve_results(@brokers, topic, 0, 0)
+
+      assert [{"key", "value"}] == parsed_messages
+
+      assert log =~ "Elsa.Partitioner.Default is deprecated. Use Elsa.Partitioner.Zero instead."
+    end
+
+    test "rejects legacy partitioner atoms" do
       topic = "old-default-topic"
       connection = :elsa_test_old_partitioner_name
 
@@ -218,11 +244,8 @@ defmodule Elsa.ProducerTest do
 
       Producer.wait_ready(connection)
 
-      patient_produce(connection, topic, {"key", "value"}, partitioner: :default)
-
-      parsed_messages = retrieve_results(@brokers, topic, 0, 0)
-
-      assert [{"key", "value"}] == parsed_messages
+      assert {:error, "invalid partitioner :default. Use an Elsa.Partitioner module."} =
+               Producer.produce(connection, topic, {"key", "value"}, partitioner: :default)
     end
   end
 
