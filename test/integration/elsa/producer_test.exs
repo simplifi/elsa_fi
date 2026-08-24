@@ -165,6 +165,14 @@ defmodule Elsa.ProducerTest do
 
       assert [{"key1", "value1"}, {"key2", IO.iodata_to_binary(iolist_message)}] == parsed_messages
     end
+
+    test "returns an error for legacy partitioner atoms" do
+      topic = "producer-topic-invalid-partitioner"
+      :ok = Elsa.create_topic(@brokers, topic)
+
+      assert {:error, "invalid partitioner :default. Use an Elsa.Partitioner module."} =
+               Producer.produce(@brokers, topic, {"key", "value"}, partitioner: :default)
+    end
   end
 
   describe "partitioner functions" do

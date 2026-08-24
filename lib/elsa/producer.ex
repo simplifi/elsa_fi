@@ -42,16 +42,13 @@ defmodule Elsa.Producer do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
     registry = ElsaSupervisor.registry(connection)
 
-    _ =
-      case Process.whereis(registry) do
-        nil ->
-          ad_hoc_produce(endpoints, connection, topic, messages, opts)
+    case Process.whereis(registry) do
+      nil ->
+        ad_hoc_produce(endpoints, connection, topic, messages, opts)
 
-        _pid ->
-          produce(connection, topic, messages, opts)
-      end
-
-    :ok
+      _pid ->
+        produce(connection, topic, messages, opts)
+    end
   end
 
   def produce(connection, topic, messages, opts) when is_atom(connection) and is_list(messages) do
@@ -80,9 +77,10 @@ defmodule Elsa.Producer do
     with {:ok, pid} <-
            ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
       wait_ready(connection)
-      _ = produce(connection, topic, messages, opts)
+      result = produce(connection, topic, messages, opts)
       Process.unlink(pid)
       Supervisor.stop(pid)
+      result
     end
   end
 
