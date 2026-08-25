@@ -5,13 +5,12 @@ defmodule Elsa.Producer do
   Defines functions to write messages to topics based on either a list of endpoints or a named client.
   All produce functions support the following options:
     * An existing named client process to handle the request can be specified by the keyword option `connection:`.
-    * If no partition is supplied, the first (zero) partition is chosen.
+    * If no partition is supplied, a partition is chosen at random.
     * Value may be a single message or a list of messages.
     * If a list of messages is supplied as the value, the key is defaulted to an empty string binary.
     * Partition can be specified by the keyword option `partition:` and an integer corresponding to a specific
-      partition, or the keyword option `partitioner:` and the atoms `:md5` or `:random`. The atoms
-      correspond to partitioner functions that will uniformely select a random partition
-      from the total available topic partitions or assign an integer based on an md5 hash of the messages.
+      partition, or the keyword option `partitioner:` and an `Elsa.Partitioner` module such as
+      `Elsa.Partitioner.Zero`, `Elsa.Partitioner.Md5`, or `Elsa.Partitioner.Random`.
   """
 
   @typedoc """
@@ -43,16 +42,13 @@ defmodule Elsa.Producer do
     connection = Keyword.get_lazy(opts, :connection, &Elsa.default_client/0)
     registry = ElsaSupervisor.registry(connection)
 
-    _ =
-      case Process.whereis(registry) do
-        nil ->
-          ad_hoc_produce(endpoints, connection, topic, messages, opts)
+    case Process.whereis(registry) do
+      nil ->
+        ad_hoc_produce(endpoints, connection, topic, messages, opts)
 
-        _pid ->
-          produce(connection, topic, messages, opts)
-      end
-
-    :ok
+      _pid ->
+        produce(connection, topic, messages, opts)
+    end
   end
 
   def produce(connection, topic, messages, opts) when is_atom(connection) and is_list(messages) do
@@ -81,9 +77,10 @@ defmodule Elsa.Producer do
     with {:ok, pid} <-
            ElsaSupervisor.start_link(endpoints: endpoints, connection: connection, producer: [topic: topic]) do
       wait_ready(connection)
-      _ = produce(connection, topic, messages, opts)
+      result = produce(connection, topic, messages, opts)
       Process.unlink(pid)
       Supervisor.stop(pid)
+      result
     end
   end
 
@@ -151,8 +148,9 @@ defmodule Elsa.Producer do
       case Keyword.get(opts, :partition) do
         nil ->
           partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
-          partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Default) |> remap_deprecated()
-          {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
+          partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
+
+          partitioner_result(partitioner, partition_count)
 
         partition ->
           {:ok, fn _msg -> partition end}
@@ -160,15 +158,34 @@ defmodule Elsa.Producer do
     end)
   end
 
-  @partitioners %{default: Elsa.Partitioner.Default, md5: Elsa.Partitioner.Md5, random: Elsa.Partitioner.Random}
-
-  defp remap_deprecated(key) when key in [:default, :md5, :random] do
-    mod = Map.get(@partitioners, key)
-    Logger.warn(fn -> ":#{key} partitioner is deprecated. Use #{mod} instead." end)
+  defp remap_deprecated(Elsa.Partitioner.Default) do
+    mod = Elsa.Partitioner.Zero
+    Logger.warn(fn -> "#{inspect(Elsa.Partitioner.Default)} is deprecated. Use #{inspect(mod)} instead." end)
     mod
   end
 
   defp remap_deprecated(key), do: key
+
+  defp partitioner_result(partitioner, partition_count)
+       when is_atom(partitioner) do
+    cond do
+      not Code.ensure_loaded?(partitioner) ->
+        {:error,
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is not loaded. Expected an Elsa.Partitioner callback module."}
+
+      not function_exported?(partitioner, :partition, 2) ->
+        {:error,
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is loaded but does not export partition/2. Expected an Elsa.Partitioner callback module."}
+
+      true ->
+        {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
+    end
+  end
+
+  defp partitioner_result(partitioner, _partition_count) do
+    {:error,
+     "invalid partitioner #{inspect(partitioner)}. Partitioner values must be atoms (module names). Expected an Elsa.Partitioner callback module."}
+  end
 
   defp brod_produce(registry, topic, partition, messages) do
     producer = :"producer_#{topic}_#{partition}"
