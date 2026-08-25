@@ -175,7 +175,7 @@ defmodule Elsa.Producer do
 
       not function_exported?(partitioner, :partition, 2) ->
         {:error,
-         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is loaded but does not export partition/2. Expected an Elsa.Partitioner module."}
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is loaded but does not export partition/2. Expected an Elsa.Partitioner callback module."}
 
       true ->
         {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
