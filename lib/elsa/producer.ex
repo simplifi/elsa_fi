@@ -171,7 +171,7 @@ defmodule Elsa.Producer do
     cond do
       not Code.ensure_loaded?(partitioner) ->
         {:error,
-         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is not loaded. Expected an Elsa.Partitioner module."}
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is not loaded. Expected an Elsa.Partitioner callback module."}
 
       not function_exported?(partitioner, :partition, 2) ->
         {:error,
