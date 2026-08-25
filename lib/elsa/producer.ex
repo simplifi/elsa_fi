@@ -168,15 +168,23 @@ defmodule Elsa.Producer do
 
   defp partitioner_result(partitioner, partition_count)
        when is_atom(partitioner) do
-    if Code.ensure_loaded?(partitioner) and function_exported?(partitioner, :partition, 2) do
-      {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
-    else
-      {:error, "invalid partitioner #{inspect(partitioner)}. Use an Elsa.Partitioner module."}
+    cond do
+      not Code.ensure_loaded?(partitioner) ->
+        {:error,
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is not loaded. Expected an Elsa.Partitioner module."}
+
+      not function_exported?(partitioner, :partition, 2) ->
+        {:error,
+         "invalid partitioner #{inspect(partitioner)}. #{inspect(partitioner)} is loaded but does not export partition/2. Expected an Elsa.Partitioner module."}
+
+      true ->
+        {:ok, fn %{key: key} -> partitioner.partition(partition_count, key) end}
     end
   end
 
   defp partitioner_result(partitioner, _partition_count) do
-    {:error, "invalid partitioner #{inspect(partitioner)}. Use an Elsa.Partitioner module."}
+    {:error,
+     "invalid partitioner #{inspect(partitioner)}. Partitioner values must be atoms (module names). Expected an Elsa.Partitioner module."}
   end
 
   defp brod_produce(registry, topic, partition, messages) do

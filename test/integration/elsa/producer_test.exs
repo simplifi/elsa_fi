@@ -170,7 +170,7 @@ defmodule Elsa.ProducerTest do
       topic = "producer-topic-invalid-partitioner"
       :ok = Elsa.create_topic(@brokers, topic)
 
-      assert {:error, "invalid partitioner :default. Use an Elsa.Partitioner module."} =
+      assert {:error, "invalid partitioner :default. :default is not loaded. Expected an Elsa.Partitioner module."} =
                Producer.produce(@brokers, topic, {"key", "value"}, partitioner: :default)
     end
   end
@@ -252,8 +252,37 @@ defmodule Elsa.ProducerTest do
 
       Producer.wait_ready(connection)
 
-      assert {:error, "invalid partitioner :default. Use an Elsa.Partitioner module."} =
+      assert {:error, "invalid partitioner :default. :default is not loaded. Expected an Elsa.Partitioner module."} =
                Producer.produce(connection, topic, {"key", "value"}, partitioner: :default)
+    end
+
+    test "rejects partitioner modules that do not export partition/2" do
+      topic = "missing-partitioner-fn-topic"
+      connection = :elsa_test_missing_partitioner_function
+
+      :ok = Elsa.create_topic(@brokers, topic)
+
+      {:ok, supervisor} =
+        ElsaSupervisor.start_link(endpoints: @brokers, connection: connection, producer: [topic: topic])
+
+      on_exit(fn -> assert_down(supervisor) end)
+
+      Producer.wait_ready(connection)
+
+      assert {:error,
+              "invalid partitioner Elsa.ProducerTest.MissingPartitioner. Elsa.ProducerTest.MissingPartitioner is loaded but does not export partition/2. Expected an Elsa.Partitioner module."} =
+               Producer.produce(connection, topic, {"key", "value"},
+                 partitioner: Elsa.ProducerTest.MissingPartitioner
+               )
+    end
+
+    test "rejects non-atom partitioner values" do
+      topic = "invalid-non-atom-partitioner-topic"
+      :ok = Elsa.create_topic(@brokers, topic)
+
+      assert {:error,
+              "invalid partitioner \"random\". Partitioner values must be atoms (module names). Expected an Elsa.Partitioner module."} =
+               Producer.produce(@brokers, topic, {"key", "value"}, partitioner: "random")
     end
   end
 
@@ -334,4 +363,7 @@ end
 
 defmodule Testing.SuperSimpleMessageHandler do
   use Elsa.Consumer.MessageHandler
+end
+
+defmodule Elsa.ProducerTest.MissingPartitioner do
 end
