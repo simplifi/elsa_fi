@@ -184,7 +184,7 @@ defmodule Elsa.Producer do
 
   defp partitioner_result(partitioner, _partition_count) do
     {:error,
-     "invalid partitioner #{inspect(partitioner)}. Partitioner values must be atoms (module names). Expected an Elsa.Partitioner module."}
+     "invalid partitioner #{inspect(partitioner)}. Partitioner values must be atoms (module names). Expected an Elsa.Partitioner callback module."}
   end
 
   defp brod_produce(registry, topic, partition, messages) do
