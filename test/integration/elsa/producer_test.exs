@@ -271,9 +271,7 @@ defmodule Elsa.ProducerTest do
 
       assert {:error,
               "invalid partitioner Elsa.ProducerTest.MissingPartitioner. Elsa.ProducerTest.MissingPartitioner is loaded but does not export partition/2. Expected an Elsa.Partitioner module."} =
-               Producer.produce(connection, topic, {"key", "value"},
-                 partitioner: Elsa.ProducerTest.MissingPartitioner
-               )
+               Producer.produce(connection, topic, {"key", "value"}, partitioner: Elsa.ProducerTest.MissingPartitioner)
     end
 
     test "rejects non-atom partitioner values" do
