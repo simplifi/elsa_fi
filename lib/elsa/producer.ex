@@ -144,18 +144,31 @@ defmodule Elsa.Producer do
   end
 
   defp get_partitioner(registry, topic, opts) do
-    Util.with_client(registry, fn client ->
-      case Keyword.get(opts, :partition) do
-        nil ->
-          partition_count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
-          partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
+    case Keyword.get(opts, :partition) do
+      nil ->
+        partitioner = Keyword.get(opts, :partitioner, Elsa.Partitioner.Random) |> remap_deprecated()
 
+        with {:ok, partition_count} <- get_partition_count(registry, topic) do
           partitioner_result(partitioner, partition_count)
+        end
 
-        partition ->
-          {:ok, fn _msg -> partition end}
-      end
-    end)
+      partition ->
+        {:ok, fn _msg -> partition end}
+    end
+  end
+
+  defp get_partition_count(registry, topic) do
+    case ElsaRegistry.get_partition_count(registry, topic) do
+      {:ok, count} ->
+        {:ok, count}
+
+      :error ->
+        Util.with_client(registry, fn client ->
+          count = Util.partition_count!(client, topic, Elsa.RetryConfig.no_retry())
+          ElsaRegistry.put_partition_count(registry, topic, count)
+          {:ok, count}
+        end)
+    end
   end
 
   defp remap_deprecated(Elsa.Partitioner.Default) do
