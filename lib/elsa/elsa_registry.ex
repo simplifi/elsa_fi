@@ -67,7 +67,7 @@ defmodule Elsa.ElsaRegistry do
   """
   @spec put_partition_count(atom(), String.t(), non_neg_integer()) :: true
   def put_partition_count(registry, topic, count) do
-    :ets.insert(:"#{registry}_partition_cache", {topic, count})
+    :ets.insert(partition_cache_name(registry), {topic, count})
   end
 
   @doc """
@@ -76,7 +76,7 @@ defmodule Elsa.ElsaRegistry do
   """
   @spec get_partition_count(atom(), String.t()) :: {:ok, non_neg_integer()} | :error
   def get_partition_count(registry, topic) do
-    case :ets.lookup(:"#{registry}_partition_cache", topic) do
+    case :ets.lookup(partition_cache_name(registry), topic) do
       [{^topic, count}] -> {:ok, count}
       [] -> :error
     end
@@ -112,10 +112,10 @@ defmodule Elsa.ElsaRegistry do
 
     ^name = :ets.new(name, [:named_table, :set, :protected, {:read_concurrency, true}])
 
-    partition_cache = :"#{name}_partition_cache"
+    partition_cache = partition_cache_name(name)
     ^partition_cache = :ets.new(partition_cache, [:named_table, :set, :public, {:read_concurrency, true}])
 
-    {:ok, %{registry: name, partition_cache: partition_cache}}
+    {:ok, %{registry: name}}
   end
 
   def handle_call({:register, key, pid}, _from, state) do
@@ -137,6 +137,8 @@ defmodule Elsa.ElsaRegistry do
 
     {:reply, :ok, state}
   end
+
+  defp partition_cache_name(registry), do: :"#{registry}_partition_cache"
 
   def handle_info({:EXIT, pid, _reason}, state) do
     case :ets.match(state.registry, {:"$1", pid}) do
