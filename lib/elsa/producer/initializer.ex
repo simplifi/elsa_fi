@@ -1,11 +1,12 @@
 defmodule Elsa.Producer.Initializer do
   @moduledoc false
 
+  alias Elsa.ElsaRegistry
   alias Elsa.Util
 
   @spec init(registry :: atom(), producer_configs :: list(keyword)) :: [Supervisor.child_spec()]
   def init(registry, producer_configs) do
-    brod_client = Elsa.ElsaRegistry.whereis_name({registry, :brod_client})
+    brod_client = ElsaRegistry.whereis_name({registry, :brod_client})
 
     case Keyword.keyword?(producer_configs) do
       true ->
@@ -29,7 +30,7 @@ defmodule Elsa.Producer.Initializer do
     # which would break our ability to retry.
     {:ok, endpoints} = Util.get_endpoints(brod_client)
     partitions = Util.partition_count!(endpoints, topic, retry_config)
-    Elsa.ElsaRegistry.put_partition_count(registry, topic, partitions)
+    ElsaRegistry.put_partition_count(registry, topic, partitions)
 
     0..(partitions - 1)
     |> Enum.map(fn partition ->
