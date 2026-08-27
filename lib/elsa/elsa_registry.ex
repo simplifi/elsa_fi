@@ -62,6 +62,27 @@ defmodule Elsa.ElsaRegistry do
   end
 
   @doc """
+  Cache the partition count for a topic. Direct ETS write — no process hop.
+  The cache table is owned by the registry process and is deleted when the connection dies.
+  """
+  @spec put_partition_count(atom(), String.t(), non_neg_integer()) :: true
+  def put_partition_count(registry, topic, count) do
+    :ets.insert(partition_cache_name(registry), {topic, count})
+  end
+
+  @doc """
+  Look up the cached partition count for a topic. Direct ETS read — no process hop.
+  Returns `{:ok, count}` or `:error` if not yet cached.
+  """
+  @spec get_partition_count(atom(), String.t()) :: {:ok, non_neg_integer()} | :error
+  def get_partition_count(registry, topic) do
+    case :ets.lookup(partition_cache_name(registry), topic) do
+      [{^topic, count}] -> {:ok, count}
+      [] -> :error
+    end
+  end
+
+  @doc """
   Wraps the Kernel module `send/2` function with a safe call to
   ensure the receiving process is defined.
   """
@@ -91,6 +112,9 @@ defmodule Elsa.ElsaRegistry do
 
     ^name = :ets.new(name, [:named_table, :set, :protected, {:read_concurrency, true}])
 
+    partition_cache = partition_cache_name(name)
+    ^partition_cache = :ets.new(partition_cache, [:named_table, :set, :public, {:read_concurrency, true}])
+
     {:ok, %{registry: name}}
   end
 
@@ -113,6 +137,8 @@ defmodule Elsa.ElsaRegistry do
 
     {:reply, :ok, state}
   end
+
+  defp partition_cache_name(registry), do: :"#{registry}_partition_cache"
 
   def handle_info({:EXIT, pid, _reason}, state) do
     case :ets.match(state.registry, {:"$1", pid}) do
