@@ -178,9 +178,12 @@ defmodule Elsa.Group.Manager do
   def handle_continue(:initialize, state) do
     with {:ok, group_coordinator_pid} <- start_group_coordinator(state),
          {:ok, acknowledger_pid} <- start_acknowledger(state) do
-      new_state = %{state | group_coordinator_pid: group_coordinator_pid, acknowledger_pid: acknowledger_pid}
-      new_state = initialize_partition_counts(new_state)
-      _ = setup_poll(new_state.poll)
+      new_state =
+        state
+        |> Map.put(:group_coordinator_pid, group_coordinator_pid)
+        |> Map.put(:acknowledger_pid, acknowledger_pid)
+        |> initialize_partition_counts()
+        |> tap(&setup_poll(&1.poll))
 
       {:noreply, new_state}
     else
@@ -230,8 +233,10 @@ defmodule Elsa.Group.Manager do
   end
 
   def handle_info(:poll, state) do
-    new_state = poll_partition_counts(state)
-    _ = setup_poll(new_state.poll)
+    new_state =
+      state
+      |> poll_partition_counts()
+      |> tap(&setup_poll(&1.poll))
 
     {:noreply, new_state}
   end
