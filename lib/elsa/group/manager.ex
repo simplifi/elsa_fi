@@ -183,7 +183,7 @@ defmodule Elsa.Group.Manager do
         |> Map.put(:group_coordinator_pid, group_coordinator_pid)
         |> Map.put(:acknowledger_pid, acknowledger_pid)
         |> initialize_partition_counts()
-        |> tap(&setup_poll(&1.poll))
+        |> tap(&setup_poll/1)
 
       {:noreply, new_state}
     else
@@ -236,7 +236,7 @@ defmodule Elsa.Group.Manager do
     new_state =
       state
       |> poll_partition_counts()
-      |> tap(&setup_poll(&1.poll))
+      |> tap(&setup_poll/1)
 
     {:noreply, new_state}
   end
@@ -383,8 +383,8 @@ defmodule Elsa.Group.Manager do
     end)
   end
 
-  defp setup_poll(time) when is_integer(time), do: :timer.send_after(time, :poll)
-  defp setup_poll(_time), do: nil
+  defp setup_poll(%State{poll: time}) when is_integer(time), do: :timer.send_after(time, :poll)
+  defp setup_poll(_state), do: nil
 
   defp shutdown_and_wait(pid) do
     Process.exit(pid, :shutdown)
