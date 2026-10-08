@@ -3,6 +3,8 @@ defmodule Elsa.Group.Manager.PollingTest do
 
   import Mock
 
+  alias Elsa.ElsaRegistry
+  alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager
   alias Elsa.Group.Manager.State
   alias Elsa.Util
@@ -21,6 +23,16 @@ defmodule Elsa.Group.Manager.PollingTest do
     }
   end
 
+  defp initialization_state do
+    %State{
+      connection: @connection,
+      group: "group",
+      topics: [@topic],
+      config: [],
+      poll: 300_000
+    }
+  end
+
   defp metadata_mocks(partition_count) do
     [
       {Elsa.Util, [],
@@ -34,6 +46,43 @@ defmodule Elsa.Group.Manager.PollingTest do
          get_metadata: fn :brod_client, @topic -> {:ok, %{}} end
        ]}
     ]
+  end
+
+  test "initializes coordinator, acknowledger, partition counts, and polling" do
+    mocks =
+      metadata_mocks(2) ++
+        [
+          {:brod_group_coordinator, [],
+           [
+             start_link: fn connection, group, topics, config, module, _member_pid ->
+               assert connection == @connection
+               assert group == "group"
+               assert topics == [@topic]
+               assert config == []
+               assert module == Manager
+               {:ok, :group_coordinator_pid}
+             end
+           ]},
+          {ElsaRegistry, [],
+           [
+             register_name: fn {registry, :brod_group_coordinator}, :group_coordinator_pid ->
+               assert registry == :elsa_registry_group_polling_test
+               :yes
+             end
+           ]},
+          {Acknowledger, [],
+           [
+             start_link: fn connection: @connection -> {:ok, :acknowledger_pid} end
+           ]}
+        ]
+
+    with_mocks(mocks) do
+      {:noreply, new_state} = Manager.handle_continue(:initialize, initialization_state())
+
+      assert new_state.group_coordinator_pid == :group_coordinator_pid
+      assert new_state.acknowledger_pid == :acknowledger_pid
+      assert new_state.partition_counts == %{@topic => 2}
+    end
   end
 
   test "does not rebalance when partition counts are unchanged" do
