@@ -13,6 +13,7 @@ defmodule Elsa.Group.Manager do
   alias Elsa.ElsaRegistry
   alias Elsa.Group.Acknowledger
   alias Elsa.Group.Manager.WorkerSupervisor
+  alias Elsa.Util
 
   defrecord :brod_received_assignment, extract(:brod_received_assignment, from_lib: "brod/include/brod.hrl")
 
@@ -82,10 +83,12 @@ defmodule Elsa.Group.Manager do
           assignments_complete_handler: assignments_complete_handler(),
           handler: handler(),
           handler_init_args: term(),
-          config: consumer_config()
+          config: consumer_config(),
+          poll: non_neg_integer() | false
         ]
 
   @default_delay 5_000
+  @default_poll 300_000
 
   defmodule State do
     @moduledoc """
@@ -107,7 +110,9 @@ defmodule Elsa.Group.Manager do
       :handler,
       :handler_init_args,
       :workers,
-      :generation_id
+      :generation_id,
+      :poll,
+      partition_counts: nil
     ]
   end
 
@@ -163,7 +168,8 @@ defmodule Elsa.Group.Manager do
       handler: Keyword.fetch!(opts, :handler),
       handler_init_args: Keyword.get(opts, :handler_init_args, %{}),
       config: Keyword.get(opts, :config, []),
-      workers: %{}
+      workers: %{},
+      poll: Keyword.get(opts, :poll, @default_poll)
     }
 
     {:ok, state, {:continue, :initialize}}
@@ -172,7 +178,14 @@ defmodule Elsa.Group.Manager do
   def handle_continue(:initialize, state) do
     with {:ok, group_coordinator_pid} <- start_group_coordinator(state),
          {:ok, acknowledger_pid} <- start_acknowledger(state) do
-      {:noreply, %{state | group_coordinator_pid: group_coordinator_pid, acknowledger_pid: acknowledger_pid}}
+      new_state =
+        state
+        |> Map.put(:group_coordinator_pid, group_coordinator_pid)
+        |> Map.put(:acknowledger_pid, acknowledger_pid)
+        |> initialize_partition_counts()
+        |> tap(&setup_poll/1)
+
+      {:noreply, new_state}
     else
       {:error, reason} ->
         {:stop, reason, state}
@@ -217,6 +230,15 @@ defmodule Elsa.Group.Manager do
     new_workers = WorkerSupervisor.restart_worker(state.workers, ref, state)
 
     {:noreply, %{state | workers: new_workers}}
+  end
+
+  def handle_info(:poll, state) do
+    new_state =
+      state
+      |> poll_partition_counts()
+      |> tap(&setup_poll/1)
+
+    {:noreply, new_state}
   end
 
   def handle_info({:EXIT, _pid, reason}, %State{delay: delay, start_time: started} = state) do
@@ -271,6 +293,98 @@ defmodule Elsa.Group.Manager do
   defp start_acknowledger(state) do
     Acknowledger.start_link(connection: state.connection)
   end
+
+  defp initialize_partition_counts(state) do
+    if is_integer(state.poll) do
+      initialize_partition_counts_from_metadata(state)
+    else
+      state
+    end
+  end
+
+  defp initialize_partition_counts_from_metadata(state) do
+    case fetch_partition_counts(state) do
+      {:ok, partition_counts} ->
+        %{state | partition_counts: partition_counts}
+
+      {:error, reason} ->
+        Logger.warning("Unable to initialize partition counts for group #{state.group}: #{inspect(reason)}")
+        state
+    end
+  end
+
+  defp poll_partition_counts(state) do
+    case fetch_partition_counts(state) do
+      {:ok, partition_counts} when partition_counts == state.partition_counts ->
+        state
+
+      {:ok, partition_counts} when is_map(state.partition_counts) ->
+        changed_topics = changed_topics(state.partition_counts, partition_counts)
+
+        case refresh_brod_metadata(state, changed_topics) do
+          :ok ->
+            Logger.info("Partition count changed for group #{state.group}; triggering group rebalance")
+            :ok = :brod_group_coordinator.update_topics(state.group_coordinator_pid, state.topics)
+            %{state | partition_counts: partition_counts}
+
+          {:error, reason} ->
+            Logger.warning("Unable to refresh metadata for group #{state.group}: #{inspect(reason)}")
+            state
+        end
+
+      {:ok, partition_counts} ->
+        %{state | partition_counts: partition_counts}
+
+      {:error, reason} ->
+        Logger.warning("Unable to poll partition counts for group #{state.group}: #{inspect(reason)}")
+        state
+    end
+  end
+
+  defp fetch_partition_counts(state) do
+    registry = registry(state.connection)
+
+    Util.with_client(registry, fn brod_client ->
+      with {:ok, endpoints} <- Util.get_endpoints(brod_client) do
+        fetch_partition_counts_for_topics(endpoints, state.topics)
+      end
+    end)
+  end
+
+  defp fetch_partition_counts_for_topics(endpoints, topics) do
+    Enum.reduce_while(topics, {:ok, %{}}, fn topic, {:ok, counts} ->
+      case Util.partition_count(endpoints, topic, Elsa.RetryConfig.no_retry()) do
+        {:ok, count} -> {:cont, {:ok, Map.put(counts, topic, count)}}
+        {:error, reason} -> {:halt, {:error, {topic, reason}}}
+      end
+    end)
+  end
+
+  defp refresh_brod_metadata(state, topics) do
+    registry = registry(state.connection)
+
+    Util.with_client(registry, fn brod_client ->
+      refresh_brod_metadata_for_topics(brod_client, topics)
+    end)
+  end
+
+  defp refresh_brod_metadata_for_topics(brod_client, topics) do
+    Enum.reduce_while(topics, :ok, fn topic, :ok ->
+      case :brod_client.get_metadata(brod_client, topic) do
+        {:ok, _metadata} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {topic, reason}}}
+      end
+    end)
+  end
+
+  defp changed_topics(previous_counts, partition_counts) do
+    Enum.filter(Map.keys(partition_counts), fn topic ->
+      Map.get(previous_counts, topic) != Map.get(partition_counts, topic)
+    end)
+  end
+
+  defp setup_poll(%State{poll: time}) when is_integer(time), do: :timer.send_after(time, :poll)
+  defp setup_poll(_state), do: nil
 
   defp shutdown_and_wait(pid) do
     Process.exit(pid, :shutdown)
