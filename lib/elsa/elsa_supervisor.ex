@@ -159,8 +159,9 @@ defmodule Elsa.ElsaSupervisor do
   """
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(args) do
-    opts = Keyword.take(args, [:name])
-    Supervisor.start_link(__MODULE__, args, opts)
+    connection = Keyword.fetch!(args, :connection)
+    name = Keyword.get(args, :name, :"elsa_supervisor_#{connection}")
+    Supervisor.start_link(__MODULE__, args, name: name)
   end
 
   @doc """

@@ -121,6 +121,7 @@ defmodule Elsa.ElsaRegistry do
   def handle_call({:register, key, pid}, _from, state) do
     Process.link(pid)
     :ets.insert(state.registry, {key, pid})
+    register_local_name(state.registry, key, pid)
 
     {:reply, :yes, state}
   end
@@ -130,6 +131,7 @@ defmodule Elsa.ElsaRegistry do
       [{^key, pid}] ->
         Process.unlink(pid)
         :ets.delete(state.registry, key)
+        unregister_local_name(state.registry, key, pid)
 
       _ ->
         :ok
@@ -137,6 +139,23 @@ defmodule Elsa.ElsaRegistry do
 
     {:reply, :ok, state}
   end
+
+  # Gives the process a local name so it is identifiable in observer. Skipped when
+  # the pid already has a name (e.g. the brod client) or the name is taken.
+  defp register_local_name(registry, key, pid) do
+    name = local_name(registry, key)
+
+    if Process.info(pid, :registered_name) == {:registered_name, []} and Process.whereis(name) == nil do
+      Process.register(pid, name)
+    end
+  end
+
+  defp unregister_local_name(registry, key, pid) do
+    name = local_name(registry, key)
+    if Process.whereis(name) == pid, do: Process.unregister(name)
+  end
+
+  defp local_name(registry, key), do: :"#{registry}.#{key}"
 
   defp partition_cache_name(registry), do: :"#{registry}_partition_cache"
 
