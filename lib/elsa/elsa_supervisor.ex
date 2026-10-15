@@ -94,6 +94,8 @@ defmodule Elsa.ElsaSupervisor do
 
   * `:worker_supervisor_max_seconds` - Optional. max_seconds option passed to the WorkerSupervisor.  Default 5 seconds.
 
+  * `:poll` - Optional. Poll interval in milliseconds for discovering new partitions and triggering a group rebalance. Defaults to 300_000.
+
   * `:config` - Optional. Consumer configuration options passed to `brod_consumer`.
 
   * `:metadata_request_config` - Optional. See Metadata Request Config

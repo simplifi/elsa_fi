@@ -15,7 +15,8 @@ defmodule Elsa.Group.GroupSupervisor do
           connection: Elsa.connection(),
           topics: [Elsa.topic()],
           group: String.t(),
-          config: list
+          config: list,
+          poll: non_neg_integer() | false
         ]
 
   @spec start_link(init_opts) :: GenServer.on_start()
