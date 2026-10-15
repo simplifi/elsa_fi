@@ -353,7 +353,7 @@ defmodule Elsa.Group.Manager do
   end
 
   defp refresh_brod_metadata(state, topics) do
-    registry(state.connection) |> Util.with_client(&(refresh_brod_metadata_for_topics(&1, topics)))
+    registry(state.connection) |> Util.with_client(&refresh_brod_metadata_for_topics(&1, topics))
   end
 
   defp refresh_brod_metadata_for_topics(brod_client, topics) do
