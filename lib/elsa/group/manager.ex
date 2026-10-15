@@ -179,9 +179,7 @@ defmodule Elsa.Group.Manager do
     with {:ok, group_coordinator_pid} <- start_group_coordinator(state),
          {:ok, acknowledger_pid} <- start_acknowledger(state) do
       new_state =
-        state
-        |> Map.put(:group_coordinator_pid, group_coordinator_pid)
-        |> Map.put(:acknowledger_pid, acknowledger_pid)
+        %{state | group_coordinator_pid: group_coordinator_pid, acknowledger_pid: acknowledger_pid}
         |> initialize_partition_counts()
         |> tap(&setup_poll/1)
 
