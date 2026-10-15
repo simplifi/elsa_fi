@@ -292,15 +292,9 @@ defmodule Elsa.Group.Manager do
     Acknowledger.start_link(connection: state.connection)
   end
 
-  defp initialize_partition_counts(state) do
-    if is_integer(state.poll) do
-      initialize_partition_counts_from_metadata(state)
-    else
-      state
-    end
-  end
+  defp initialize_partition_counts(state = %{poll: poll}) when not is_integer(poll), do: state
 
-  defp initialize_partition_counts_from_metadata(state) do
+  defp initialize_partition_counts(state) do
     case fetch_partition_counts(state) do
       {:ok, partition_counts} ->
         %{state | partition_counts: partition_counts}
