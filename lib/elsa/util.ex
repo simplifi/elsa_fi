@@ -154,6 +154,19 @@ defmodule Elsa.Util do
     end
   end
 
+  @doc """
+  Return a topic's partition count using the broker endpoints from a Brod client.
+
+  This intentionally uses the endpoint-based partition-count query instead of the
+  connection-based query. Brod caches metadata, including missing topics, when using
+  the client-based path, which can prevent retries from observing fresh metadata.
+  """
+  @spec partition_count_from_client!(atom() | pid(), String.t(), RetryConfig.t()) :: integer()
+  def partition_count_from_client!(client, topic, retry_config \\ RetryConfig.no_retry()) do
+    {:ok, endpoints} = get_endpoints(client)
+    partition_count!(endpoints, topic, retry_config)
+  end
+
   @spec get_endpoints(Elsa.connection()) :: {:ok, list()} | {:error, any}
   def get_endpoints(connection) do
     case :brod_client.get_bootstrap(connection) do

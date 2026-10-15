@@ -107,6 +107,28 @@ defmodule Elsa.UtilTest do
     end
   end
 
+  describe "partition_count_from_client!/3" do
+    test "queries metadata using the client's broker endpoints" do
+      with_mocks([
+        {:brod_client, [],
+         [
+           get_bootstrap: fn :brod_client -> {:ok, {[localhost: 9092], :client_id}} end
+         ]},
+        {:brod, [],
+         [
+           get_metadata: fn endpoints, topics ->
+             assert endpoints == [{~c"localhost", 9092}]
+             assert topics == ["topic"]
+
+             {:ok, %{topic_metadata: [%{partition_metadata: [:partition_0, :partition_1]}]}}
+           end
+         ]}
+      ]) do
+        assert Util.partition_count_from_client!(:brod_client, "topic") == 2
+      end
+    end
+  end
+
   defp to_message(char, opts \\ []) do
     string = List.to_string([char])
 
