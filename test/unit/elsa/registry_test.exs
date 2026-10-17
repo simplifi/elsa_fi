@@ -32,6 +32,22 @@ defmodule Elsa.ElsaRegistryTest do
     :ok
   end
 
+  test "gives registered processes a local name and releases it on unregister" do
+    {:ok, pid} = Agent.start_link(fn -> :ok end, name: {:via, ElsaRegistry, {@registry, :agent}})
+
+    assert Process.whereis(:"elsa_registry.agent") == pid
+
+    ElsaRegistry.unregister_name({@registry, :agent})
+    assert Process.whereis(:"elsa_registry.agent") == nil
+  end
+
+  test "does not fail for processes that already have a name" do
+    {:ok, pid} = Agent.start_link(fn -> :ok end, name: :already_named)
+
+    assert :yes == ElsaRegistry.register_name({@registry, :named}, pid)
+    assert Process.whereis(:already_named) == pid
+  end
+
   test "registers and lookups pids by name" do
     Agent.start_link(fn -> :agent_value end, name: {:via, ElsaRegistry, {@registry, :agent}})
 
