@@ -3,6 +3,19 @@ defmodule Elsa.Consumer.MessageHandler do
   Define the behaviour and default implementations of functions
   for creating message handlers that will be called by Elsa worker
   processes.
+
+  ## Return values
+
+    * `:ack` / `:acknowledge` - commit the last offset of the batch (or the offset
+      given with `{:ack, offset}`) and keep consuming.
+    * `:no_ack` / `:noop` - do not ack, and do NOT redeliver. Consumption continues
+      with later batches, and a later ack commits past this batch, so it will be
+      skipped unless you ack it yourself.
+    * `{:retry, offset}` - do not ack; rewind the consumer to `offset` and deliver
+      from there again, in order, before anything newer. Use the first offset of the
+      batch to redeliver all of it. Retrying repeatedly holds the partition at that
+      offset, so bound the attempts (and back off) in your handler state.
+    * `:continue` - keep consuming without committing to the consumer group.
   """
   @callback init(term()) :: {:ok, term()}
 
@@ -13,10 +26,18 @@ defmodule Elsa.Consumer.MessageHandler do
               | {:ack, term(), term()}
               | {:no_ack, term()}
               | {:noop, term()}
+              | {:retry, non_neg_integer(), term()}
               | {:continue, term()}
 
   @callback handle_messages(term()) ::
-              :ack | :acknowledge | {:ack, term()} | {:acknowledge, term()} | :no_ack | :noop | :continue
+              :ack
+              | :acknowledge
+              | {:ack, term()}
+              | {:acknowledge, term()}
+              | :no_ack
+              | :noop
+              | {:retry, non_neg_integer()}
+              | :continue
 
   @doc """
   Defines the macro for implementing the message handler behaviour
@@ -43,6 +64,7 @@ defmodule Elsa.Consumer.MessageHandler do
           {:acknowledge, offset} -> {:acknowledge, offset, state}
           :no_ack -> {:no_ack, state}
           :noop -> {:noop, state}
+          {:retry, offset} -> {:retry, offset, state}
           :continue -> {:continue, state}
         end
       end

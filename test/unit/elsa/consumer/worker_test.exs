@@ -90,6 +90,93 @@ defmodule Elsa.Consumer.WorkerTest do
     end
   end
 
+  describe "handle_info/2 retry" do
+    setup_with_mocks([
+      {Acknowledger, [], [ack: fn _, _, _, _, _ -> :ok end]},
+      {:brod_consumer, [], [unsubscribe: fn _, _ -> :ok end, subscribe: fn _, _, _ -> :ok end, ack: fn _, _ -> :ok end]}
+    ]) do
+      consumer_pid = spawn(fn -> :ok end)
+      state = build_worker_state(consumer_pid: consumer_pid)
+
+      messages =
+        kafka_message_set(
+          topic: "test-topic",
+          partition: 0,
+          messages: [
+            kafka_message(offset: 13, key: "key1", value: "value1"),
+            kafka_message(offset: 14, key: "key2", value: "value2")
+          ]
+        )
+
+      {:ok, state: state, consumer_pid: consumer_pid, messages: messages}
+    end
+
+    test "rewinds the consumer to the given offset without acking", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      set_handler(fn _messages -> {:retry, 14} end)
+
+      assert {:noreply, new_state} = Worker.handle_info({consumer_pid, messages}, state)
+
+      assert new_state.offset == 14
+      assert_called_exactly(:brod_consumer.unsubscribe(consumer_pid, self()), 1)
+      assert_called_exactly(:brod_consumer.subscribe(consumer_pid, self(), begin_offset: 14), 1)
+      assert_not_called(Acknowledger.ack(:_, :_, :_, :_, :_))
+      assert_not_called(:brod_consumer.ack(:_, :_))
+    end
+
+    test "drops message sets brod already sent past the retry offset", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      set_handler(fn _messages -> {:retry, 13} end)
+
+      stale = kafka_message_set(topic: "test-topic", partition: 0, messages: [kafka_message(offset: 20)])
+      other_pid = spawn(fn -> :ok end)
+      send(self(), {consumer_pid, stale})
+      send(self(), {consumer_pid, stale})
+      send(self(), {other_pid, stale})
+
+      assert {:noreply, _} = Worker.handle_info({consumer_pid, messages}, state)
+
+      refute_received {^consumer_pid, _}
+      # message sets from other senders are left alone
+      assert_received {^other_pid, _}
+    end
+
+    test "keeps the handler state returned alongside the retry", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      defmodule StatefulRetryHandler do
+        use Elsa.Consumer.MessageHandler
+        def handle_messages(_messages, state), do: {:retry, 13, Map.put(state, :attempts, 1)}
+      end
+
+      state = %{state | handler: StatefulRetryHandler, handler_state: %{}}
+
+      assert {:noreply, %{handler_state: %{attempts: 1}}} = Worker.handle_info({consumer_pid, messages}, state)
+    end
+
+    test "stops with :resubscribe_failed when re-subscribing fails", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      set_handler(fn _messages -> {:retry, 13} end)
+      state = %{state | config: [subscribe_delay: 0]}
+
+      with_mock :brod_consumer, unsubscribe: fn _, _ -> :ok end, subscribe: fn _, _, _ -> {:error, :no_leader} end do
+        assert {:stop, {:resubscribe_failed, :failed_subscription}, _} =
+                 Worker.handle_info({consumer_pid, messages}, state)
+      end
+    end
+  end
+
   describe "handle_info/2 offset_out_of_range" do
     setup_with_mocks([
       {:brod_consumer, [], [subscribe: fn _, _, _ -> :ok end, ack: fn _, _ -> :ok end]}
