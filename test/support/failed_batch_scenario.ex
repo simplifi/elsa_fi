@@ -12,6 +12,7 @@ defmodule Elsa.Test.FailedBatchScenario do
   broker has committed for the group, so tests can assert on what was and wasn't processed.
   """
   import ExUnit.Assertions, only: [flunk: 1]
+  import ExUnit.Callbacks, only: [on_exit: 1]
 
   @waves 6
   @per_wave 3
@@ -86,7 +87,7 @@ defmodule Elsa.Test.FailedBatchScenario do
 
     # The supervisor is linked to the test process, so it may already be going down when
     # on_exit runs; ignore that race.
-    ExUnit.Callbacks.on_exit(fn ->
+    on_exit(fn ->
       try do
         Supervisor.stop(sup)
       catch
@@ -159,7 +160,7 @@ defmodule Elsa.Test.FailedBatchScenario do
   defp committed_after_wait(endpoints, group, topic, tag, min) do
     client = String.to_atom("#{tag}-admin")
     {:ok, _} = :brod.start_link_client(endpoints, client)
-    ExUnit.Callbacks.on_exit(fn -> :brod.stop_client(client) end)
+    on_exit(fn -> :brod.stop_client(client) end)
     wait_committed(client, group, topic, min, System.monotonic_time(:millisecond))
   end
 
