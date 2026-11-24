@@ -150,6 +150,10 @@ defmodule Elsa.Consumer.Worker do
       {no_ack, new_handler_state} when no_ack in [:no_ack, :noop] ->
         {:noreply, %{state | handler_state: new_handler_state}}
 
+      {:retry, offset, new_handler_state} when is_integer(offset) and offset >= 0 ->
+        validate_retry_offset!(offset, transformed_messages)
+        retry_from(offset, %{state | handler_state: new_handler_state})
+
       {:continue, new_handler_state} ->
         offset = transformed_messages |> List.last() |> Map.get(:offset)
         :ok = :brod_consumer.ack(state.consumer_pid, offset)
@@ -209,6 +213,50 @@ defmodule Elsa.Consumer.Worker do
 
   defp send_messages_to_handler(messages, state) do
     state.handler.handle_messages(messages, state.handler_state)
+  end
+
+  # A retry may rewind to any offset up to the last one in the batch just handled: the handler has
+  # seen everything up to there. Past it would skip messages it has never seen (they would never
+  # be redelivered, and a later ack would commit over them), so fail loudly instead.
+  defp validate_retry_offset!(offset, messages) do
+    first = messages |> List.first() |> Map.get(:offset)
+    last = messages |> List.last() |> Map.get(:offset)
+
+    if offset > last do
+      raise ArgumentError,
+            "cannot retry from offset #{offset}: the batch just handled covers offsets #{first}..#{last}, " <>
+              "so retrying from #{offset} would skip offsets #{last + 1}..#{offset - 1} that were never handled"
+    end
+
+    :ok
+  end
+
+  # Rewinds the consumer to `offset` so messages are delivered again from there, in order,
+  # before anything newer. Nothing is acked, so the committed offset does not move.
+  #
+  # Order matters: once unsubscribe returns brod sends no more message sets, so everything it
+  # already sent (prefetched batches past `offset`) is in our mailbox and can be dropped
+  # safely. Flushing after re-subscribing could discard the fresh fetch instead.
+  defp retry_from(offset, state) do
+    new_state = %{state | offset: offset}
+
+    with :ok <- :brod_consumer.unsubscribe(state.consumer_pid, self()),
+         :ok <- flush_message_sets(state.consumer_pid),
+         :ok <- subscribe(state.consumer_pid, new_state) do
+      Logger.info("Retrying topic #{state.topic} partition #{state.partition} from offset #{offset}")
+      {:noreply, new_state}
+    else
+      {:error, reason} ->
+        {:stop, {:resubscribe_failed, reason}, state}
+    end
+  end
+
+  defp flush_message_sets(consumer_pid) do
+    receive do
+      {^consumer_pid, kafka_message_set()} -> flush_message_sets(consumer_pid)
+    after
+      0 -> :ok
+    end
   end
 
   defp ack_messages(_topic, _partition, offset, %{generation_id: nil} = state) do
