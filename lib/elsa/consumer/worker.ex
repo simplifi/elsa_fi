@@ -151,6 +151,7 @@ defmodule Elsa.Consumer.Worker do
         {:noreply, %{state | handler_state: new_handler_state}}
 
       {:retry, offset, new_handler_state} when is_integer(offset) and offset >= 0 ->
+        validate_retry_offset!(offset, transformed_messages)
         retry_from(offset, %{state | handler_state: new_handler_state})
 
       {:continue, new_handler_state} ->
@@ -212,6 +213,22 @@ defmodule Elsa.Consumer.Worker do
 
   defp send_messages_to_handler(messages, state) do
     state.handler.handle_messages(messages, state.handler_state)
+  end
+
+  # A retry may rewind to any offset up to the last one in the batch just handled: the handler has
+  # seen everything up to there. Past it would skip messages it has never seen (they would never
+  # be redelivered, and a later ack would commit over them), so fail loudly instead.
+  defp validate_retry_offset!(offset, messages) do
+    first = messages |> List.first() |> Map.get(:offset)
+    last = messages |> List.last() |> Map.get(:offset)
+
+    if offset > last do
+      raise ArgumentError,
+            "cannot retry from offset #{offset}: the batch just handled covers offsets #{first}..#{last}, " <>
+              "so retrying from #{offset} would skip offsets #{last + 1}..#{offset - 1} that were never handled"
+    end
+
+    :ok
   end
 
   # Rewinds the consumer to `offset` so messages are delivered again from there, in order,

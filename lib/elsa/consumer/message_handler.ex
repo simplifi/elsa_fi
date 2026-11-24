@@ -13,7 +13,9 @@ defmodule Elsa.Consumer.MessageHandler do
       skipped unless you ack it yourself.
     * `{:retry, offset}` - do not ack; rewind the consumer to `offset` and deliver
       from there again, in order, before anything newer. Use the first offset of the
-      batch to redeliver all of it. Retrying repeatedly holds the partition at that
+      batch to redeliver all of it. The offset can be at most the last offset of the batch
+      just handled; retrying past it would skip messages never seen, and raises
+      `ArgumentError`. Retrying repeatedly holds the partition at that
       offset, so bound the attempts (and back off) in your handler state.
     * `:continue` - keep consuming without committing to the consumer group.
   """

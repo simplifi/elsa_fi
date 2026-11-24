@@ -147,6 +147,30 @@ defmodule Elsa.Consumer.WorkerTest do
       assert_received {^other_pid, _}
     end
 
+    test "retrying past the end of the batch is rejected, because it would skip messages", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      # The batch is offsets 13..14. Offsets 15..19 have never been handled, so restarting
+      # at 20 would skip them.
+      set_handler(fn _messages -> {:retry, 20} end)
+
+      assert_raise ArgumentError, ~r/offset 20.*13..14/, fn -> Worker.handle_info({consumer_pid, messages}, state) end
+      assert_not_called(:brod_consumer.subscribe(:_, :_, :_))
+      assert_not_called(:brod_consumer.unsubscribe(:_, :_))
+    end
+
+    test "retrying from the last offset of the batch is allowed", %{
+      state: state,
+      consumer_pid: consumer_pid,
+      messages: messages
+    } do
+      set_handler(fn _messages -> {:retry, 14} end)
+
+      assert {:noreply, %{offset: 14}} = Worker.handle_info({consumer_pid, messages}, state)
+    end
+
     test "keeps the handler state returned alongside the retry", %{
       state: state,
       consumer_pid: consumer_pid,
